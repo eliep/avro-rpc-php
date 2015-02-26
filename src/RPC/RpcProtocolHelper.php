@@ -91,7 +91,6 @@ META;
   }
   
   public function writeMetadata($encoder, $datum = array() ) {
-    $datum = array("treize"=> pack("N",13 ));
     $writer = new \AvroIODatumWriter($this->getMetadataSchema());
     $writer->write($datum, $encoder);
   }

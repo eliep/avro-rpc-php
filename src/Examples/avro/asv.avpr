@@ -1,5 +1,5 @@
 {"protocol": "ASV",
- "namespace": "fr.v3d.avro",
+ "namespace": "examples.protocol.fr.v3d.avro",
 
  "types": [
      {"type": "record", "name": "Asv",
