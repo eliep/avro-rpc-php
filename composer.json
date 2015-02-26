@@ -1,6 +1,6 @@
 {
   "name": "eliep/avro-rpc-php",
-  "description": "",
+  "description": "An Avro RPC client in PHP (compatible with the Avro RPC server in Java)",
   "license": "Apache-2.0",
   
   "authors": [
