@@ -1,0 +1,84 @@
+<?php
+
+namespace Avro\RPC;
+
+
+class RpcClient {
+  
+  private $socket;
+  private $frame_length = 1024;
+  
+  public function __construct($host, $port) {
+    $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
+    socket_connect($this->socket , $host , $port);
+  }
+  
+  public function encodeRequest($protocolWrapper, $method, $params) {
+    $io = new \AvroStringIO();
+    $encoder = new \AvroIOBinaryEncoder($io);
+    $protocolWrapper->writeRequestHandshake($encoder);
+    $protocolWrapper->writeMetadata($encoder);
+    $encoder->write_string($method);
+    $protocolWrapper->writeRequest($encoder, $method, $params);
+    
+    return $io->string();
+  }
+  
+  
+  public function send($protocolWrapper, $method, $params) {
+    $binary = $this->encodeRequest($protocolWrapper, $method, $params);
+    
+    $binary_length = strlen($binary);
+    $max_binary_frame_length = $this->frame_length - 4;
+    $sended_length = 0;
+    
+    $frames = array();
+    while ($sended_length < $binary_length) {
+      $not_sended_length = $binary_length - $sended_length;
+      $binary_frame_length = ($not_sended_length > $max_binary_frame_length) ? $max_binary_frame_length : $not_sended_length;
+      $frames[] = substr($binary, $sended_length, $binary_frame_length);
+      $sended_length += $binary_frame_length;
+    }
+    
+    $header = pack("N", 1).pack("N", count($frames));
+    socket_send ($this->socket, $header, strlen($header) , 0);
+    foreach ($frames as $frame) {
+      $msg = pack("N", strlen($frame)).$frame;
+      socket_send ( $this->socket, $msg, strlen($msg), 0);
+    }
+    $footer = pack("N", 0);
+    socket_send ( $this->socket, $footer, strlen($footer), 0);
+  }
+  
+  public function decodeResponse($protocolWrapper, $method, $binary) {
+    $io = new \AvroStringIO($binary);
+    $decoder = new \AvroIOBinaryDecoder($io);
+    $protocolWrapper->readResponseHandshake($decoder);
+    $protocolWrapper->readMetadata($decoder);
+    $error_flag = $decoder->read_boolean();
+    
+    if (!$error_flag) {
+      return $protocolWrapper->readResponse($decoder, $method);
+    } else {
+      $error = $protocolWrapper->readError($decoder);
+      throw new Exception($error);
+    }
+  }
+  
+  public function read($protocolWrapper, $method) {
+    socket_recv ( $this->socket , $buf , 8 , MSG_WAITALL );
+    $frame_count = unpack("Nserial/Ncount", $buf);
+    $frame_count = $frame_count["count"];
+    $binary = "";
+    for ($i = 0; $i < $frame_count; $i++ ) {
+      socket_recv ( $this->socket , $buf , 4 , MSG_WAITALL );
+      $frame_size = unpack("Nsize", $buf);
+      $frame_size = $frame_size["size"];
+      socket_recv ( $this->socket , $buf , $frame_size , MSG_WAITALL );
+      $binary .= $buf;
+    }
+    socket_recv ( $this->socket , $buf , 4 , MSG_WAITALL );
+    
+    return $this->decodeResponse($protocolWrapper, $method, $binary);
+  }
+}

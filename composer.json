@@ -1,0 +1,20 @@
+{
+  "name": "eliep/avro-rpc-php",
+  "description": "",
+  "license": "Apache-2.0",
+  
+  "authors": [
+    {
+      "name": "Elie P",
+      "email": "eprudhomme@gmail.com"
+    }
+  ],
+  
+  "require": {
+  },
+  
+  "autoload": {
+    "psr-4": {"Avro\\": "src/"},
+    "classmap": ["lib/"]
+  }
+}
