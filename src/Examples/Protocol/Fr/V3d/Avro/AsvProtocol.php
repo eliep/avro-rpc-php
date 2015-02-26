@@ -2,9 +2,9 @@
 
 namespace Avro\Examples\Protocol\Fr\V3d\Avro;
 
-use Avro\Protocol\Protocol;
+use Avro\RPC\RpcProtocol;
 
-class AsvProtocol extends Protocol {
+class AsvProtocol extends RpcProtocol {
   
   private $jsonProtocol = <<<PROTO
 {"protocol": "ASV",
@@ -40,11 +40,11 @@ PROTO;
   }
   
   public function send($message) {
-    return $this->abstractRequest(array($message));
+    return $this->genericRequest(array($message));
   }
   
   public function sendImpl($callback) {
-    $this->abstractResponse($callback);
+    $this->genericResponse($callback);
   }
   
 }

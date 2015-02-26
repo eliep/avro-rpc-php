@@ -3,12 +3,13 @@
 namespace Avro\RPC;
 
 
-class RpcClient {
+class RpcClient extends RpcTransport {
   
-  private $socket;
   private $frame_length = 1024;
+  private static $serial = 0;
   
   public function __construct($host, $port) {
+    parent::__construct($host, $port);
     $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
     socket_connect($this->socket , $host , $port);
   }
@@ -16,7 +17,10 @@ class RpcClient {
   public function encodeRequest($protocolWrapper, $method, $params) {
     $io = new \AvroStringIO();
     $encoder = new \AvroIOBinaryEncoder($io);
-    $protocolWrapper->writeRequestHandshake($encoder);
+    if (!$this->handshake) {
+      $protocolWrapper->writeRequestHandshake($encoder);
+      $this->handshake = true;
+    }
     $protocolWrapper->writeMetadata($encoder);
     $encoder->write_string($method);
     $protocolWrapper->writeRequest($encoder, $method, $params);
@@ -27,8 +31,8 @@ class RpcClient {
   
   public function send($protocolWrapper, $method, $params) {
     $binary = $this->encodeRequest($protocolWrapper, $method, $params);
-    
     $binary_length = strlen($binary);
+    
     $max_binary_frame_length = $this->frame_length - 4;
     $sended_length = 0;
     
@@ -40,14 +44,14 @@ class RpcClient {
       $sended_length += $binary_frame_length;
     }
     
-    $header = pack("N", 1).pack("N", count($frames));
-    socket_send ($this->socket, $header, strlen($header) , 0);
+    $header = pack("N", self::$serial++).pack("N", count($frames));
+    //socket_send ($this->socket, $header, strlen($header) , 0);
+    $x = socket_write ($this->socket, $header, strlen($header));
     foreach ($frames as $frame) {
       $msg = pack("N", strlen($frame)).$frame;
-      socket_send ( $this->socket, $msg, strlen($msg), 0);
+      //socket_send ( $this->socket, $msg, strlen($msg), 0);
+      $x = socket_write ( $this->socket, $msg, strlen($msg));
     }
-    $footer = pack("N", 0);
-    socket_send ( $this->socket, $footer, strlen($footer), 0);
   }
   
   public function decodeResponse($protocolWrapper, $method, $binary) {
@@ -61,7 +65,7 @@ class RpcClient {
       return $protocolWrapper->readResponse($decoder, $method);
     } else {
       $error = $protocolWrapper->readError($decoder);
-      throw new Exception($error);
+      throw new RpcResponseException($error);
     }
   }
   
@@ -77,7 +81,6 @@ class RpcClient {
       socket_recv ( $this->socket , $buf , $frame_size , MSG_WAITALL );
       $binary .= $buf;
     }
-    socket_recv ( $this->socket , $buf , 4 , MSG_WAITALL );
     
     return $this->decodeResponse($protocolWrapper, $method, $binary);
   }

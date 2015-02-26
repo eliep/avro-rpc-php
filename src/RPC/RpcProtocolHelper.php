@@ -3,7 +3,7 @@
 
 namespace Avro\RPC;
 
-class AvroProtocolWrapper {
+class RpcProtocolHelper {
   
   private $jsonRequestHandshake = <<<HSR
 {
@@ -50,7 +50,7 @@ META;
   }
   
   public function getProtocol() { return $this->protocol; }
-  public function getMD5() { return md5($this->json, true); }
+  public function getMD5() { return md5(json_encode(json_decode($this->json)), true); }
   public function getRequestHandshakeSchema() { return \AvroSchema::parse($this->jsonRequestHandshake); }
   public function getResponseHandshakeSchema() { return \AvroSchema::parse($this->jsonResponseHandshake); }
   public function getMetadataSchema() { return \AvroSchema::parse($this->jsonMetadata); }
@@ -90,7 +90,8 @@ META;
     return $reader->read($decoder);
   }
   
-  public function writeMetadata($encoder, $datum = array()) {
+  public function writeMetadata($encoder, $datum = array() ) {
+    $datum = array("treize"=> pack("N",13 ));
     $writer = new \AvroIODatumWriter($this->getMetadataSchema());
     $writer->write($datum, $encoder);
   }
@@ -129,7 +130,7 @@ META;
   }
   
   public function readError($decoder) {
-    $reader = new \AvroIODatumReader('["string"]');
+    $reader = new \AvroIODatumReader(\AvroSchema::parse('["string"]'));
     return $reader->read($decoder);
   }
   

@@ -3,13 +3,13 @@
 namespace Avro\RPC;
 
 
-class RpcServer {
+class RpcServer  extends RpcTransport {
   
-  private $socket;
   private $spawn;
   private $frame_length = 1024;
   
   public function __construct($host, $port) {
+    parent::__construct($host, $port);
     $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
     socket_bind($this->socket , $host , $port);
     socket_listen($this->socket, 3);
@@ -56,7 +56,10 @@ class RpcServer {
   public function decodeRequest($protocolWrapper, $binary, &$method) {
     $io = new \AvroStringIO($binary);
     $decoder = new \AvroIOBinaryDecoder($io);
-    $protocolWrapper->readRequestHandshake($decoder);
+    if (!$this->handshake) {
+      $protocolWrapper->readRequestHandshake($decoder);
+      $this->handshake = true;
+    }
     $protocolWrapper->readMetadata($decoder);
     $method = $decoder->read_string();
     
