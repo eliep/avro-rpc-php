@@ -1,12 +1,18 @@
-{"namespace": "protocol",
- "protocol": "Mail",
+{
+"protocol": "Mail",
+"namespace": "fr.v3d.avro",
 
  "types": [
-     {"name": "Message", "type": "record",
+     {"type": "record", "name": "Message",
       "fields": [
           {"name": "to",   "type": "string"},
           {"name": "from", "type": "string"},
           {"name": "body", "type": "string"}
+      ]
+     },
+     {"type": "record", "name": "Reply", 
+      "fields": [
+          {"name": "body",   "type": "string"}
       ]
      }
  ],
@@ -14,7 +20,7 @@
  "messages": {
      "send": {
          "request": [{"name": "message", "type": "Message"}],
-         "response": "string"
+         "response": "Reply"
      }
  }
 }

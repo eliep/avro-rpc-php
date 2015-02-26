@@ -15,7 +15,8 @@ abstract class Protocol {
   public static function getClient($host, $port) {
     $client = new RpcClient($host, $port);
     if (is_null(self::$protocol)) {
-      self::$protocol = new MailProtocol($client);
+      $caller = get_called_class();
+      self::$protocol = new $caller($client);
     }
     return self::$protocol;
   }
@@ -23,7 +24,8 @@ abstract class Protocol {
   public static function getServer($host, $port) {
     $server = new RpcServer($host, $port);
     if (is_null(self::$protocol)) {
-      self::$protocol = new MailProtocol($server);
+      $caller = get_called_class();
+      self::$protocol = new $caller($server);
     }
     return self::$protocol;
   }

@@ -1,6 +1,8 @@
 <?php
 
-namespace Avro\Protocol;
+namespace Avro\Examples\Protocol\Fr\V3d\Avro;
+
+use Avro\Protocol\Protocol;
 
 class MailProtocol extends Protocol {
   

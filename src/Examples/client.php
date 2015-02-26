@@ -2,7 +2,7 @@
 
 require_once __DIR__."/../../vendor/autoload.php";
 
-use Avro\Protocol\MailProtocol;
+use Avro\Examples\Protocol\Fr\V3d\Avro\MailProtocol;
 
 $datum = array(
   array("to" => "me", "from" => "me", "body" => "yep"),
