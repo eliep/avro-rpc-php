@@ -18,7 +18,10 @@ class PT_CLASSNAME extends RpcProtocol {
   private \$jsonProtocol =
 PT_JSON
 
+  private \$md5 = "PT_MD5";
+  
   public function getJsonProtocol() { return \$this->jsonProtocol; }
+  public function getMd5() { return \$this->md5; }
   
 PT_CLIENT_FUNCTIONS
 
@@ -61,13 +64,13 @@ SFT;
     
     $filename = $this->getFilename($protocol);
     $subdirectory = $this->getSubdirectory($protocol);
-    $protocol_tpl = $this->generate($protocol, $protocol_json, $namespace_prefix);
+    $protocol_tpl = $this->generate($protocol_helper, $protocol, $protocol_json, $namespace_prefix);
     if (!file_exists($output_folder.$subdirectory))
       mkdir($output_folder.$subdirectory, 0755, true);
     file_put_contents($output_folder.$subdirectory."/".$filename, $protocol_tpl);
   }
   
-  public function generate($protocol, $protocol_json, $namespace_prefix) {
+  public function generate($protocol_helper, $protocol, $protocol_json, $namespace_prefix) {
     $namespace = $this->getNamespace($protocol, $namespace_prefix);
     $this->protocol_tpl = str_replace("PT_NAMESPACE", $namespace, $this->protocol_tpl);
     
@@ -76,6 +79,9 @@ SFT;
     
     $json = $this->getJson($protocol_json);
     $this->protocol_tpl = str_replace("PT_JSON", $json, $this->protocol_tpl);
+    
+    $md5 = $this->getMd5($protocol_helper);
+    $this->protocol_tpl = str_replace("PT_MD5", $md5, $this->protocol_tpl);
     
     $client_functions = $this->getClientFunctions($protocol);
     $this->protocol_tpl = str_replace("PT_CLIENT_FUNCTIONS", $client_functions, $this->protocol_tpl);
@@ -106,7 +112,11 @@ SFT;
   
   
   public function getJson($protocol_json) {
-    return $json = "<<<PROTO\n".json_encode(json_decode($protocol_json))."\nPROTO;\n";
+    return "<<<PROTO\n".json_encode(json_decode($protocol_json))."\nPROTO;\n";
+  }
+  
+  public function getMd5($protocol_helper) {
+    return str_replace('"', '\\"', $protocol_helper->getMd5());
   }
   
   public function getClientFunctions($protocol) {

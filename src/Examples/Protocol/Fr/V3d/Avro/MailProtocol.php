@@ -8,11 +8,14 @@ class ASVProtocol extends RpcProtocol {
   
   private $jsonProtocol =
 <<<PROTO
-{"protocol":"ASV","namespace":"examples.protocol.fr.v3d.avro","types":[{"type":"record","name":"Asv","fields":[{"name":"a","type":"int"},{"name":"s","type":"string"},{"name":"v","type":"string"}]},{"type":"record","name":"Attention","fields":[{"name":"status","type":"string"}]}],"messages":{"send":{"request":[{"name":"message","type":"Asv"}],"response":"Attention"}}}
+{"namespace":"examples.protocol.fr.v3d.avro","protocol":"ASV","types":[{"type":"record","name":"Attention","fields":[{"name":"status","type":"string"}]},{"type":"record","name":"Asv","fields":[{"name":"a","type":"int"},{"name":"s","type":"string"},{"name":"v","type":"string"}]}],"messages":{"send":{"request":[{"name":"message","type":"Asv"}],"response":"Attention"}}}
 PROTO;
 
 
+  private $md5 = ",å-¬œŒåƒ«d_Ôð\Ìä";
+  
   public function getJsonProtocol() { return $this->jsonProtocol; }
+  public function getMd5() { return $this->md5; }
   
     
   public function send($message) {

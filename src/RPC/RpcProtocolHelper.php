@@ -43,14 +43,16 @@ META;
 
   private $protocol;
   private $json;
+  private $md5;
   
-  public function __construct($json) {
+  public function __construct($json, $md5 = null) {
     $this->json = $json;
     $this->protocol = \AvroProtocol::parse($json);
+    $this->md5 = ($md5 != null) ? $md5 : md5($this->__toString(), true);
   }
   
   public function getProtocol() { return $this->protocol; }
-  public function getMD5() { return md5(json_encode(json_decode($this->json)), true); }
+  public function getMD5() { return $this->md5; }
   public function getRequestHandshakeSchema() { return \AvroSchema::parse($this->jsonRequestHandshake); }
   public function getResponseHandshakeSchema() { return \AvroSchema::parse($this->jsonResponseHandshake); }
   public function getMetadataSchema() { return \AvroSchema::parse($this->jsonMetadata); }
@@ -133,4 +135,52 @@ META;
     return $reader->read($decoder);
   }
   
+  
+  /**
+   * @returns string the JSON-encoded representation of this Avro schema.
+   */
+  public function __toString() {
+    return json_encode($this->to_avro());
+  }
+  
+  /**
+   * @returns mixed
+   */
+  public function to_avro()
+  {
+    $avro = array("protocol" => $this->getProtocol()->name, "namespace" => $this->getProtocol()->namespace);//, "types" => , "messages" => );
+    
+    $types = array();
+    $messages = array();
+    foreach ($this->getProtocol()->messages as $name => $msg) {
+      
+      foreach ($msg->request->fields() as $field) {
+        $field_fullname =$field->type->fullname();
+        if ($this->getProtocol()->schemata->has_name($field_fullname)) {
+          $types[] = $this->getProtocol()->schemata->schema($field_fullname)->to_avro();
+        }
+      }
+      
+      $messages[$name] = array(
+        "request" => $msg->request->to_avro()
+      );
+      
+      if (!is_null($msg->response)) {
+        $response_type = $msg->response->type();
+        if (\AvroSchema::is_named_type($response_type)) {
+          $response_type = $msg->response->qualified_name();
+          $types[] = $this->getProtocol()->schemata->schema($msg->response->fullname())->to_avro();
+        }
+
+        $messages[$name]["response"] = $response_type;
+      }
+    }
+    
+    $avro["types"] = $types;
+    $avro["messages"] = $messages;
+    
+    return $avro;
+  }
+
+
 }

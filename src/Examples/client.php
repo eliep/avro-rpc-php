@@ -11,6 +11,7 @@ $datum = array(
   array("a" => 20, "s" => "f", "v" => "there"),
   array("a" => 50, "s" => "f", "v" => "there")
 );
+//new ASVProtocol(null);
 
 $protocol = ASVProtocol::getClient('127.0.0.1', 1420);//192.168.100.109
 foreach ($datum as $data) {

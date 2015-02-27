@@ -15,11 +15,12 @@ abstract class RpcProtocol {
 
   
   public function __construct($transport) {
-    $this->protocolHelper = new RpcProtocolHelper($this->getJsonProtocol());
+    $this->protocolHelper = new RpcProtocolHelper($this->getJsonProtocol(), $this->getMd5());
     $this->transport = $transport;
   }
   
   abstract public function getJsonProtocol();
+  abstract public function getMd5();
   
   public function renew() {
     $this->transport = RpcTransport::renew($this->transport);
@@ -28,14 +29,14 @@ abstract class RpcProtocol {
   
   protected function genericRequest($params) {
     $this->transport->send($this->protocolHelper, "send", $params);
-    $response = $this->transport->read($this->protocolHelper, "send");
+    $response = $this->transport->receive($this->protocolHelper, "send");
     //$this->renew();
     return $response;
   }
   
   protected function genericResponse($callback) {
     while (true) {
-      $params = $this->transport->read($this->protocolHelper, $method);
+      $params = $this->transport->receive($this->protocolHelper, $method);
       $result = $callback($params);
       $this->transport->send($this->protocolHelper, $method, $result);
     }

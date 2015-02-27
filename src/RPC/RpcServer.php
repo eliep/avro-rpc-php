@@ -6,7 +6,6 @@ namespace Avro\RPC;
 class RpcServer  extends RpcTransport {
   
   private $spawn;
-  private $frame_length = 1024;
   
   public function __construct($host, $port) {
     parent::__construct($host, $port);
@@ -16,7 +15,17 @@ class RpcServer  extends RpcTransport {
     $this->spawn = socket_accept($this->socket);
   }
   
-  public function encodeResult($protocolWrapper, $method, $result) {
+  public function send($protocolWrapper, $method, $result) {
+    $binary = $this->encode($protocolWrapper, $method, $result);
+    $this->write($this->socket, $binary);
+  }
+  
+  public function receive($protocolWrapper, &$method) {
+    $binary = $this->read($this->spawn);
+    return $this->decode($protocolWrapper, $binary, $method);
+  }
+  
+  public function encode($protocolWrapper, $method, $result) {
     $io = new \AvroStringIO();
     $encoder = new \AvroIOBinaryEncoder($io);
     $protocolWrapper->writeResponseHandshake($encoder);
@@ -27,33 +36,7 @@ class RpcServer  extends RpcTransport {
     return $io->string();
   }
   
-  
-  public function send($protocolWrapper, $method, $result) {
-    $binary = $this->encodeResult($protocolWrapper, $method, $result);
-    
-    $binary_length = strlen($binary);
-    $max_binary_frame_length = $this->frame_length - 4;
-    $sended_length = 0;
-    
-    $frames = array();
-    while ($sended_length < $binary_length) {
-      $not_sended_length = $binary_length - $sended_length;
-      $binary_frame_length = ($not_sended_length > $max_binary_frame_length) ? $max_binary_frame_length : $not_sended_length;
-      $frames[] = substr($binary, $sended_length, $binary_frame_length);
-      $sended_length += $binary_frame_length;
-    }
-    
-    $header = pack("N", 1).pack("N", count($frames));
-    socket_send ($this->spawn, $header, strlen($header) , 0);
-    foreach ($frames as $frame) {
-      $msg = pack("N", strlen($frame)).$frame;
-      socket_send ( $this->spawn, $msg, strlen($msg), 0);
-    }
-    $footer = pack("N", 0);
-    socket_send ( $this->spawn, $footer, strlen($footer), 0);
-  }
-  
-  public function decodeRequest($protocolWrapper, $binary, &$method) {
+  public function decode($protocolWrapper, $binary, &$method) {
     $io = new \AvroStringIO($binary);
     $decoder = new \AvroIOBinaryDecoder($io);
     if (!$this->handshake) {
@@ -64,23 +47,5 @@ class RpcServer  extends RpcTransport {
     $method = $decoder->read_string();
     
     return $protocolWrapper->readRequest($decoder, $method);
-  }
-  
-  public function read($protocolWrapper, &$method) {
-    socket_recv ( $this->spawn , $buf , 8 , MSG_WAITALL );
-    $frame_count = unpack("Nserial/Ncount", $buf);
-    $frame_count = $frame_count["count"];
-    $binary = "";
-    for ($i = 0; $i < $frame_count; $i++ ) {
-      socket_recv ( $this->spawn , $buf , 4 , MSG_WAITALL );
-      $frame_size = unpack("Nsize", $buf);
-      $frame_size = $frame_size["size"];
-      socket_recv ( $this->spawn , $buf , $frame_size , MSG_WAITALL );
-      $binary .= $buf;
-    }
-    socket_recv ( $this->spawn , $buf , 4 , MSG_WAITALL );
-    
-    return $this->decodeRequest($protocolWrapper, $binary, $method);
-    
   }
 }

@@ -1,17 +1,18 @@
-{"protocol": "ASV",
+{
  "namespace": "examples.protocol.fr.v3d.avro",
+ "protocol": "ASV",
 
  "types": [
+     {"type": "record", "name": "Attention",
+      "fields": [
+          {"name": "status",   "type": "string"}
+      ]
+     },
      {"type": "record", "name": "Asv",
       "fields": [
           {"name": "a",   "type": "int"},
           {"name": "s", "type": "string"},
           {"name": "v", "type": "string"}
-      ]
-     },
-     {"type": "record", "name": "Attention",
-      "fields": [
-          {"name": "status",   "type": "string"}
       ]
      }
      
