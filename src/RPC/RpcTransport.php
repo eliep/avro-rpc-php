@@ -48,8 +48,7 @@ class RpcTransport {
     $x = socket_write ($socket, $header, strlen($header));
     foreach ($frames as $frame) {
       $msg = pack("N", strlen($frame)).$frame;
-      //socket_send ( $this->socket, $msg, strlen($msg), 0);
-      $x = socket_write ( $socket, $msg, strlen($msg));
+      socket_write ( $socket, $msg, strlen($msg));
     }
   }
   

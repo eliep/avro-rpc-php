@@ -12,15 +12,15 @@ class RpcServer  extends RpcTransport {
     $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
     socket_bind($this->socket , $host , $port);
     socket_listen($this->socket, 3);
-    $this->spawn = socket_accept($this->socket);
   }
   
   public function send($protocolWrapper, $method, $result) {
     $binary = $this->encode($protocolWrapper, $method, $result);
-    $this->write($this->socket, $binary);
+    $this->write($this->spawn, $binary);
   }
   
   public function receive($protocolWrapper, &$method) {
+    $this->spawn = socket_accept($this->socket);
     $binary = $this->read($this->spawn);
     return $this->decode($protocolWrapper, $binary, $method);
   }

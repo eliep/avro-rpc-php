@@ -1,11 +1,11 @@
 <?php
 require_once __DIR__."/../../vendor/autoload.php";
 
-use Avro\Examples\Protocol\Fr\V3d\Avro\MailProtocol;
+use Avro\Examples\Protocol\Fr\V3d\Avro\ASVProtocol;
 
 
-$protocol = MailProtocol::getServer('localhost', 1421);
+$protocol = ASVProtocol::getServer('127.0.0.1', 1420);
 $protocol->sendImpl(function($params) {
   $msg = $params[0];
-  return array("body"=>"toto");
+  return array("status"=>"toto");
 });
