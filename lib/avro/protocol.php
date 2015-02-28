@@ -29,7 +29,9 @@ class AvroProtocol
 {
   public $name;
   public $namespace;
+  public $doc = null;
   public $schemata;
+  public $messages;
 
   public static function parse($json)
   {
@@ -46,6 +48,9 @@ class AvroProtocol
     $this->namespace = $avro["namespace"];
     $this->schemata = new AvroNamedSchemata();
     $this->name = $avro["protocol"];
+    
+    if (isset($avro["doc"]))
+      $this->doc = $avro["doc"];
 
     if (!is_null($avro["types"])) {
         $types = AvroSchema::real_parse($avro["types"], $this->namespace, $this->schemata);
@@ -90,9 +95,17 @@ class AvroProtocol
   {
     $avro = array("protocol" => $this->name, "namespace" => $this->namespace);//, "types" => , "messages" => );
     
+    if (!is_null($this->doc))
+      $avro["doc"] = $this->doc;
+    
     $types = array();
     $messages = array();
     foreach ($this->messages as $name => $msg) {
+      
+      $messages[$name] = array();
+      
+      if (!is_null($msg->doc))
+        $messages[$name]["doc"] = $msg->doc;
       
       foreach ($msg->request->fields() as $field) {
         $field_fullname =$field->type->fullname();
@@ -105,14 +118,34 @@ class AvroProtocol
         "request" => $msg->request->to_avro()
       );
       
-      if (!is_null($msg->response)) {
-        $response_type = $msg->response->type();
-        if (AvroSchema::is_named_type($response_type)) {
-          $response_type = $msg->response->qualified_name();
-          $types[] = $this->schemata->schema($msg->response->fullname())->to_avro();
+      if ($msg->is_one_way()) {
+        $messages[$name]["response"] = "null";
+        $messages[$name]["one-way"] = true;
+      } else {
+        
+        if (!is_null($msg->response)) {
+          $response_type = $msg->response->type();
+          if (AvroSchema::is_named_type($response_type)) {
+            $response_type = $msg->response->qualified_name();
+            $types[] = $this->schemata->schema($msg->response->fullname())->to_avro();
+          }
+  
+          $messages[$name]["response"] = $response_type;
         }
-
-        $messages[$name]["response"] = $response_type;
+        
+        if (!is_null($msg->errors)) {
+          $messages[$name]["errors"] = array();
+          
+          foreach ($msg->errors->schemas() as $error) {
+            $error_type = $error->type();
+            if (AvroSchema::is_named_type($error_type)) {
+              $error_type = $error->qualified_name();
+              $types[] = $this->schemata->schema($error->fullname())->to_avro();
+            }
+    
+            $messages[$name]["errors"][] = $error_type;
+          }
+        }
       }
     }
     
@@ -125,24 +158,62 @@ class AvroProtocol
 
 class AvroProtocolMessage
 {
+
+  public $doc = null;
   /**
    * @var AvroRecordSchema $request
    */
-
   public $request;
-
-  public $response;
+  public $response = null;
+  public $errors = null;
+  
+  private $is_one_way = false;
 
   public function __construct($name, $avro, $protocol)
   {
     $this->name = $name;
+    
+    if (array_key_exists('doc', $avro))
+      $this->doc = $avro["doc"];
+      
     $this->request = new AvroRecordSchema(new AvroName($name, null, $protocol->namespace), null, $avro{'request'}, $protocol->schemata, AvroSchema::REQUEST_SCHEMA);
 
-    if (array_key_exists('response', $avro)) {
+    if (array_key_exists('response', $avro))
       $this->response = $protocol->schemata->schema_by_name(new AvroName($avro{'response'}, $protocol->namespace, $protocol->namespace));
-      if ($this->response == null)
+    else $avro["response"] = "null";
+      
+    if ($this->response == null)
         $this->response = new AvroPrimitiveSchema($avro{'response'});
+    
+    if (array_key_exists('errors', $avro)) {
+      if (!is_array($avro["errors"]))
+        throw new AvroProtocolParseException( "Errors must be an array");
+      
+      $errors = array();
+      foreach ($avro["errors"] as $error_type) {
+        $error_schema = $protocol->schemata->schema_by_name(new AvroName($error_type, $protocol->namespace, $protocol->namespace));
+        if (is_null($error_schema))
+          throw new AvroProtocolParseException( "Error type $error_type is unknown");
+        
+        $errors[] = $error_schema->qualified_name();
+      }
+      $this->errors = new AvroUnionSchema($errors, $protocol->namespace, $protocol->schemata);
     }
+    
+    if (isset($avro["one-way"]))
+      $this->is_one_way = $avro["one-way"];
+    
+    if ($this->is_one_way && $this->response->type() != AvroSchema::NULL_TYPE)
+      throw new AvroProtocolParseException( "One way message $name can't have a reponse");
+    
+    if ($this->is_one_way && !is_null($this->errors))
+      throw new AvroProtocolParseException( "One way message $name can't have errors");
+    
+  }
+  
+  public function is_one_way()
+  {
+    return $this->is_one_way;
   }
 }
 

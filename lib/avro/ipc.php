@@ -43,7 +43,21 @@ const BUFFER_SIZE = 8192;
  * Raised when an error message is sent by an Avro requestor or responder.
  * @package Avro
  */
-class AvroRemoteException extends AvroException { }
+class AvroRemoteException extends AvroException {
+  
+  private $avro_error;
+  
+  public function __construct($avro_error, $message = null, $code = 0, Exception $previous = null)
+  {
+    parent::__construct($message, $code, $previous);
+    $this->avro_error = $avro_error;
+  }
+  
+  public function getAvroError()
+  {
+    return $this->avro_error;
+  }
+}
 
 /**
  * @package Avro
@@ -110,17 +124,22 @@ class Requestor {
     $this->write_call_request($message_name, $request_datum, $encoder);
     
     $call_request = $io->string();
-    $call_response = $this->transceiver->transceive($call_request);
-    
-    // process the handshake and call response
-    $io = new AvroStringIO($call_response);
-    $decoder = new AvroIOBinaryDecoder($io);
-    $call_response_exists = $this->read_handshake_response($decoder);
-    
-    if ($call_response_exists)
-      return $this->read_call_response($message_name, $decoder);
-    else
-      return $this->request($message_name, $request_datum);
+    if ($this->local_protocol->messages[$message_name]->is_one_way()) {
+      $this->transceiver->write_message($call_request);
+      return true;
+      
+    } else {
+      $call_response = $this->transceiver->transceive($call_request);
+      // process the handshake and call response
+      $io = new AvroStringIO($call_response);
+      $decoder = new AvroIOBinaryDecoder($io);
+      $call_response_exists = $this->read_handshake_response($decoder);
+      
+      if ($call_response_exists) {
+        return $this->read_call_response($message_name, $decoder);
+      } else
+        return $this->request($message_name, $request_datum);
+    }
   }
   
   /**
@@ -284,7 +303,7 @@ class Responder {
   /**
    * Entry point to process one procedure call.
    * @param string $call_request the serialized procedure call request
-   * @return string the serialiazed procedure call response
+   * @return string|null the serialiazed procedure call response or null if it's a one-way message
    * @throw AvroException
    */
   public function respond($call_request) {
@@ -314,7 +333,12 @@ class Responder {
       $datum_reader = new AvroIODatumReader($remote_message->request, $local_message->request);
       $request = $datum_reader->read($decoder);
       try {
-        $response_datum = $this->invoke($local_message, $request);
+        
+        if (!$this->local_protocol->messages[$remote_message_name]->is_one_way())
+          $response_datum = $this->invoke($local_message, $request);
+        else
+          return null;
+        
       } catch (AvroRemoteException $e) {
         $error = $e;
       } catch (Exception $e) {
@@ -328,7 +352,7 @@ class Responder {
         $datum_writer->write($response_datum, $encoder);
       } else {
         $datum_writer = new AvroIODatumWriter($local_message->errors);
-        $datum_writer->write($error->getMessage(), $encoder);
+        $datum_writer->write($error->getAvroError(), $encoder);
       }
     } catch (AvroException $e) {
       $error = new AvroRemoteException($e->getMessage());
@@ -540,7 +564,8 @@ class SocketServer extends SocketTransceiver {
           // Respond if the message is not empty
           if (!is_null($call_request)) {
             $call_response = $this->responder->respond($call_request);
-            $this->write_message($call_response);
+            if (!is_null($call_response))
+              $this->write_message($call_response);
           // Else it's a client disconnecton
           } else {
             socket_close($clients[$i]);

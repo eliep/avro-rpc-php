@@ -17,11 +17,9 @@ class PT_CLASSNAME extends RpcProtocol {
   
   private \$jsonProtocol =
 PT_JSON
-
-  private \$md5 = "PT_MD5";
   
   public function getJsonProtocol() { return \$this->jsonProtocol; }
-  public function getMd5() { return \$this->md5; }
+  public function getMd5() { return md5(\$this->jsonProtocol, true); }
   
 PT_CLIENT_FUNCTIONS
 
@@ -80,9 +78,6 @@ SFT;
     $json = $this->getJson($protocol_json);
     $this->protocol_tpl = str_replace("PT_JSON", $json, $this->protocol_tpl);
     
-    $md5 = $this->getMd5($protocol_helper);
-    $this->protocol_tpl = str_replace("PT_MD5", $md5, $this->protocol_tpl);
-    
     $client_functions = $this->getClientFunctions($protocol);
     $this->protocol_tpl = str_replace("PT_CLIENT_FUNCTIONS", $client_functions, $this->protocol_tpl);
     
@@ -113,10 +108,6 @@ SFT;
   
   public function getJson($protocol_json) {
     return "<<<PROTO\n".json_encode(json_decode($protocol_json))."\nPROTO;\n";
-  }
-  
-  public function getMd5($protocol_helper) {
-    return str_replace('"', '\\"', $protocol_helper->getMd5());
   }
   
   public function getClientFunctions($protocol) {

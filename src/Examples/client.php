@@ -8,11 +8,17 @@ $p = new ASVProtocol(null);
 
 $client = new SocketTransceiver('127.0.0.1', 1432);
 $requestor = new Requestor(AvroProtocol::parse($p->getJsonProtocol()), $client);
-while (true) {
-echo json_encode($requestor->request('send', array("message" => array("a" => 20, "s" => "f", "v" => "there"))))."\n";
-echo json_encode($requestor->request('send', array("message" => array("a" => 20, "s" => "f", "v" => "there"))))."\n";
-sleep(1);
+//while (true) {
+try {
+  echo json_encode($requestor->request('send', array("message" => array("a" => 20, "s" => "f", "v" => "there"))))."\n";
+  echo json_encode($requestor->request('notify', array("message" => array("a" => 20, "s" => "f", "v" => "there"))))."\n";
+  echo json_encode($requestor->request('send', array("message" => array("a" => 16, "s" => "f", "v" => "there"))))."\n";
+  echo json_encode($requestor->request('send', array("message" => array("a" => 25, "s" => "f", "v" => "there"))))."\n";
+} catch (AvroRemoteException $e) {
+  echo "Error: " . json_encode($e->getAvroError()) ."\n";
 }
+//sleep(1);
+//}
 # cleanup
 $client->close();
 
