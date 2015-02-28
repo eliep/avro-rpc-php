@@ -19,7 +19,7 @@ PROTO;
   
     
   public function send($message) {
-    return $this->genericRequest(array($message));
+    return $this->genericRequest($message);
   }
     
 

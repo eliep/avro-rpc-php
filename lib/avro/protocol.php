@@ -58,6 +58,69 @@ class AvroProtocol
       }
     }
   }
+  
+  public function request_schemas($method) {
+    $schemas = array();
+    $msgs = $this->getProtocol()->messages[$method];
+    foreach ($msgs->request->fields() as $field) {
+      $schemas[] = $field->type();
+    }
+    return $schemas;
+  }
+  
+  /**
+   * @return string a md5 hash of this Avro Protocol
+   */
+  public function md5() {
+    return md5($this->__toString(), true);
+  }
+  
+  /**
+   * @returns string the JSON-encoded representation of this Avro schema.
+   */
+  public function __toString() {
+    return json_encode($this->to_avro());
+  }
+  
+  /**
+   * Internal represention of this Avro Protocol.
+   * @returns mixed
+   */
+  public function to_avro()
+  {
+    $avro = array("protocol" => $this->name, "namespace" => $this->namespace);//, "types" => , "messages" => );
+    
+    $types = array();
+    $messages = array();
+    foreach ($this->messages as $name => $msg) {
+      
+      foreach ($msg->request->fields() as $field) {
+        $field_fullname =$field->type->fullname();
+        if ($this->schemata->has_name($field_fullname)) {
+          $types[] = $this->schemata->schema($field_fullname)->to_avro();
+        }
+      }
+      
+      $messages[$name] = array(
+        "request" => $msg->request->to_avro()
+      );
+      
+      if (!is_null($msg->response)) {
+        $response_type = $msg->response->type();
+        if (AvroSchema::is_named_type($response_type)) {
+          $response_type = $msg->response->qualified_name();
+          $types[] = $this->schemata->schema($msg->response->fullname())->to_avro();
+        }
+
+        $messages[$name]["response"] = $response_type;
+      }
+    }
+    
+    $avro["types"] = $types;
+    $avro["messages"] = $messages;
+    
+    return $avro;
+  }
 }
 
 class AvroProtocolMessage

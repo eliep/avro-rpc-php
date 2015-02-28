@@ -57,6 +57,7 @@ META;
   public function getResponseHandshakeSchema() { return \AvroSchema::parse($this->jsonResponseHandshake); }
   public function getMetadataSchema() { return \AvroSchema::parse($this->jsonMetadata); }
   public function getRequestSchemas($method) {
+    return $this->getProtocol()->messages[$method]->request;
     $schemas = array();
     $msgs = $this->getProtocol()->messages[$method];
     foreach ($msgs->request->fields() as $field) {
@@ -103,21 +104,29 @@ META;
   }
   
   public function writeRequest($encoder, $method, $datum = array()) {
+    $writer = new \AvroIODatumWriter($this->getRequestSchemas($method));
+    $writer->write($datum, $encoder);
+      /*
     $schemas = $this->getRequestSchemas($method);
     for ($i = 0; $i < count($schemas); $i++) {
       $writer = new \AvroIODatumWriter($schemas[$i]);
       $writer->write($datum[$i], $encoder);
     }
+    */
   }
   
   public function readRequest($decoder, $method) {
     $schemas = $this->getRequestSchemas($method);
+    $reader = new \AvroIODatumReader($schemas);
+    /*
+      $params[] = $reader->read($decoder);
     $params = array();
     for ($i = 0; $i < count($schemas); $i++) {
       $reader = new \AvroIODatumReader($schemas[$i]);
       $params[] = $reader->read($decoder);
     }
     return $params;
+    */
   }
   
   public function writeResponse($encoder, $method, $datum = array()) {
