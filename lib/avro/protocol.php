@@ -97,63 +97,17 @@ class AvroProtocol
    */
   public function to_avro()
   {
-    $avro = array("protocol" => $this->name, "namespace" => $this->namespace);//, "types" => , "messages" => );
+    $avro = array("protocol" => $this->name, "namespace" => $this->namespace);
     
     if (!is_null($this->doc))
       $avro["doc"] = $this->doc;
     
     $types = array();
+    $avro["types"] = $this->schemata->to_avro();
+    
     $messages = array();
-    foreach ($this->messages as $name => $msg) {
-      
-      $messages[$name] = array();
-      
-      if (!is_null($msg->doc))
-        $messages[$name]["doc"] = $msg->doc;
-      
-      foreach ($msg->request->fields() as $field) {
-        $field_fullname =$field->type->fullname();
-        if ($this->schemata->has_name($field_fullname)) {
-          $types[] = $this->schemata->schema($field_fullname)->to_avro();
-        }
-      }
-      
-      $messages[$name] = array(
-        "request" => $msg->request->to_avro()
-      );
-      
-      if ($msg->is_one_way()) {
-        $messages[$name]["response"] = "null";
-        $messages[$name]["one-way"] = true;
-      } else {
-        
-        if (!is_null($msg->response)) {
-          $response_type = $msg->response->type();
-          if (AvroSchema::is_named_type($response_type)) {
-            $response_type = $msg->response->qualified_name();
-            $types[] = $this->schemata->schema($msg->response->fullname())->to_avro();
-          }
-  
-          $messages[$name]["response"] = $response_type;
-        }
-        
-        if (!is_null($msg->errors)) {
-          $messages[$name]["errors"] = array();
-          
-          foreach ($msg->errors->schemas() as $error) {
-            $error_type = $error->type();
-            if (AvroSchema::is_named_type($error_type)) {
-              $error_type = $error->qualified_name();
-              $types[] = $this->schemata->schema($error->fullname())->to_avro();
-            }
-    
-            $messages[$name]["errors"][] = $error_type;
-          }
-        }
-      }
-    }
-    
-    $avro["types"] = $types;
+    foreach ($this->messages as $name => $msg)
+      $messages[$name] = $msg->to_avro();
     $avro["messages"] = $messages;
     
     return $avro;
@@ -219,6 +173,45 @@ class AvroProtocolMessage
   public function is_one_way()
   {
     return $this->is_one_way;
+  }
+  
+  public function to_avro()
+  {
+    $avro = array();
+    if (!is_null($this->doc))
+      $avro["doc"] = $this->doc;
+    
+    $avro["request"] = $this->request->to_avro();
+    
+    if ($this->is_one_way()) {
+      $avro["response"] = "null";
+      $avro["one-way"] = true;
+    } else {
+      
+      if (!is_null($this->response)) {
+        $response_type = $this->response->type();
+        if (AvroSchema::is_named_type($response_type))
+          $response_type = $this->response->qualified_name();
+
+        $avro["response"] = $response_type;
+      } else {
+        throw new AvroProtocolParseException("Message '".$this->name."' has no declared response but is not a one-way message.");
+      }
+      
+      if (!is_null($this->errors)) {
+        $avro["errors"] = array();
+        
+        foreach ($this->errors->schemas() as $error) {
+          $error_type = $error->type();
+          if (AvroSchema::is_named_type($error_type))
+            $error_type = $error->qualified_name();
+  
+          $avro["errors"][] = $error_type;
+        }
+      }
+    }
+    
+    return $avro;
   }
 }
 

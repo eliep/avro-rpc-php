@@ -97,11 +97,21 @@ class ConnectionClosedException extends AvroException { }
  * @package Avro
  */
 class Requestor {
+  /**
+   * The transceiver used to send the request
+   * @var Transceiver
+   */
+  protected $transceiver;
   
   protected $local_protocol;
-  protected $transceiver;
-  protected $remote_protocol = null;
-  protected $remote_hash = null;
+  
+  protected $remote_protocol = array();
+  protected $remote_hash = array();
+  protected $remote = null;
+  /**
+   * True if the Requestor need to send it's protocol to the remote server
+   * @var boolean
+   */
   protected $send_protocol = false;
   
   protected $handshake_requestor_writer;
@@ -152,6 +162,12 @@ class Requestor {
     $call_request = $io->string();
     if ($this->local_protocol->messages[$message_name]->is_one_way()) {
       $this->transceiver->write_message($call_request);
+      if (!$this->transceiver->is_connected()) {
+        $handshake_response = $this->transceiver->read_message();
+        $io = new AvroStringIO($handshake_response);
+        $decoder = new AvroIOBinaryDecoder($io);
+        $this->read_handshake_response($decoder);
+      }
       return true;
       
     } else {
@@ -174,13 +190,21 @@ class Requestor {
    */
   public function write_handshake_request(AvroIOBinaryEncoder $encoder)
   {
+    if ($this->transceiver->is_connected())
+      return;
+    
+    $remote_name = $this->transceiver->remote_name();
+    
     $local_hash = $this->local_protocol->md5();
-    if (is_null($this->remote_hash)) {
-      $this->remote_hash = $local_hash;
-      $this->remote_protocol = $this->local_protocol;
+    $remote_hash = (!isset($this->remote_hash[$remote_name])) ? null : $this->remote_hash[$remote_name];
+    if (is_null($remote_hash)) {
+      $remote_hash = $local_hash;
+      $this->remote = $this->local_protocol;
+    } else {
+      $this->remote = $this->remote_protocol[$remote_name];
     }
     
-    $request_datum = array('clientHash' => $local_hash, 'serverHash' => $this->remote_hash, 'meta' => null);
+    $request_datum = array('clientHash' => $local_hash, 'serverHash' => $remote_hash, 'meta' => null);
     $request_datum["clientProtocol"] = ($this->send_protocol) ? $this->local_protocol : null;
       
     $this->handshake_requestor_writer->write($request_datum, $encoder);
@@ -217,30 +241,45 @@ class Requestor {
    */
   public function read_handshake_response(AvroIOBinaryDecoder $decoder)
   {
+    // if the handshake has been successfully made previously,
+    // no need to do it again
+    if ($this->transceiver->is_connected())
+      return true;
+    
+    $established = false;
     $handshake_response = $this->handshake_requestor_reader->read($decoder);
     $match = $handshake_response["match"];
+    
     switch ($match) {
       case 'BOTH':
+        $established = true;
         $this->send_protocol = false;
-        return true;
         break;
       case 'CLIENT':
-        $this->remote_protocol = AvroProtocol::parse($handshake_response["serverProtocol"]);
-        $this->remote_hash = $handshake_response["serverHash"];
+        $established = true;
         $this->send_protocol = false;
-        return true;
+        $this->set_remote($handshake_response);
         break;
       case 'NONE':
-        $this->remote_protocol = AvroProtocol::parse($handshake_response["serverProtocol"]);
-        $this->remote_hash = $handshake_response["serverHash"];
-        $this->send_protocol = false;
-        return false;
+        $this->send_protocol = true;
+        $this->set_remote($handshake_response);
+        $established = false;
         break;
       default:
         throw new AvroException("Bad handshake response match: $match");
     }
+    
+    if ($established)
+      $this->transceiver->set_remote($this->remote);
+    
+    return $established;
   }
-
+  
+  protected function set_remote($handshake_response) {
+    $this->remote_protocol[$this->transceiver->remote_name()] = AvroProtocol::parse($handshake_response["serverProtocol"]);
+    if (!isset($this->remote_hash[$this->transceiver->remote_name()]))
+      $this->remote_hash[$this->transceiver->remote_name()] = $handshake_response["serverHash"];
+  }
   
   /**
    * Reads and processes a method call response.
@@ -259,9 +298,9 @@ class Requestor {
   {
     $response_metadata = $this->meta_reader->read($decoder);
     
-    if (!isset($this->remote_protocol->messages[$message_name]))
+    if (!isset($this->remote->messages[$message_name]))
       throw new AvroException("Unknown remote message: $message_name");
-    $remote_message_schema = $this->remote_protocol->messages[$message_name];
+    $remote_message_schema = $this->remote->messages[$message_name];
     
     if (!isset($this->local_protocol->messages[$message_name]))
       throw new AvroException("Unknown local message: $message_name");
@@ -292,7 +331,7 @@ class Responder {
   protected $handshake_responder_reader;
   protected $meta_writer;
   protected $meta_reader;
-
+  
   protected $system_error_schema;
   
   public function __construct(AvroProtocol $local_protocol)
@@ -337,10 +376,11 @@ class Responder {
   /**
    * Entry point to process one procedure call.
    * @param string $call_request the serialized procedure call request
+   * @param Transceiver $transceiver the transceiver used for the response
    * @return string|null the serialiazed procedure call response or null if it's a one-way message
    * @throw AvroException
    */
-  public function respond($call_request)
+  public function respond($call_request, Transceiver $transceiver)
   {
     $buffer_reader = new AvroStringIO($call_request);
     $decoder = new AvroIOBinaryDecoder($buffer_reader);
@@ -351,9 +391,9 @@ class Responder {
     $error = null;
     $response_metadata = array();
     try {
-      $remote_protocol = $this->process_handshake($decoder, $encoder);
-      if (is_null($remote_protocol))
-        return $buffer_writer->string();
+      $remote_protocol = $this->process_handshake($decoder, $encoder, $transceiver);
+      if (is_null($remote_protocol)) 
+          return $buffer_writer->string();
       
       $request_metadata = $this->meta_reader->read($decoder);
       $remote_message_name = $decoder->read_string();
@@ -369,14 +409,16 @@ class Responder {
       $request = $datum_reader->read($decoder);
       try {
         $response_datum = $this->invoke($local_message, $request);
+        // if it's a one way message we only send the handshake if needed
         if ($this->local_protocol->messages[$remote_message_name]->is_one_way())
-          return null;
+          return ($buffer_writer->string() == "") ? null : $buffer_writer->string();
         
       } catch (AvroRemoteException $e) {
         $error = $e;
       } catch (Exception $e) {
         $error = new AvroRemoteException($e->getMessage());
       }
+      
       $this->meta_writer->write($response_metadata, $encoder);
       $encoder->write_boolean(!is_null($error));
       
@@ -387,6 +429,7 @@ class Responder {
         $datum_writer = new AvroIODatumWriter($local_message->errors);
         $datum_writer->write($error->getDatum(), $encoder);
       }
+      
     } catch (AvroException $e) {
       $error = new AvroRemoteException($e->getMessage());
       $buffer_writer = new AvroStringIO();
@@ -404,10 +447,14 @@ class Responder {
    * Processes an RPC handshake.
    * @param AvroIOBinaryDecoder $decoder Where to read from
    * @param AvroIOBinaryEncoder $encoder  Where to write to.
+   * @param Transceiver $transceiver the transceiver used for the response
    * @return AvroProtocol The requested Protocol.
    */
-  public function process_handshake(AvroIOBinaryDecoder $decoder, AvroIOBinaryEncoder $encoder)
+  public function process_handshake(AvroIOBinaryDecoder $decoder, AvroIOBinaryEncoder $encoder, Transceiver $transceiver)
   {
+    if ($transceiver->is_connected()) 
+      return $transceiver->get_remote();
+    
     $handshake_request = $this->handshake_responder_reader->read($decoder);
     $client_hash = $handshake_request["clientHash"];
     $client_protocol = $handshake_request["clientProtocol"];
@@ -437,6 +484,9 @@ class Responder {
     
     $this->handshake_responder_writer->write($handshake_response, $encoder);
     
+    if ($handshake_response['match'] != 'NONE')
+      $transceiver->set_remote($remote_protocol);
+
     return $remote_protocol;
   }
   
@@ -455,7 +505,7 @@ class Responder {
  * Abstract class to handle communicaton (framed read & write) between client & server
  */
 abstract class Transceiver {
-  public $remote_name;
+  protected $remote = null;
   
   /**
    * Processes a single request-reply interaction. Synchronous request-reply interaction.
@@ -466,6 +516,17 @@ abstract class Transceiver {
   {
     $this->write_message($request);
     return $this->read_message();
+  }
+  
+  public function get_remote()
+  {
+    return $this->remote;
+  }
+  
+  public function set_remote($remote)
+  {
+    $this->remote = $remote;
+    return $this;
   }
   
   /**
@@ -485,23 +546,77 @@ abstract class Transceiver {
    * Close this transceiver
    */
   abstract public function close();
+  
+  /**
+   * Check if this transceiver has proceed to a valid handshake exchange
+   * @return boolean true if this transceiver has make a valid hanshake with it's remote
+   */
+  abstract public function is_connected();
 }
 
 /**
  * Socket Transceiver implementation.
- * This class can be used by a client to communicate with a server
+ * This class can be used by a client to communicate with a socket server
  */
 class SocketTransceiver extends Transceiver {
   
   private static $serial = 1;
   protected $socket;
   
-  public function __construct($host, $port)
+  /**
+   * Construct a SocketTransceiver.
+   * Do not use directly,
+   * instead use the static function create & accept
+   * depending on your context :
+   *   - create for client transceiver &
+   *   - accept for server transceiver
+   */
+  public function __construct() { }
+  
+  
+  /**
+   * Create a SocketTransceiver with a new socket connected to $host:$port
+   * @param string $host
+   * @param int $host
+   * @return SocketTransceiver
+   */
+  public static function create($host, $port)
+  {
+    $transceiver = new SocketTransceiver();
+    $transceiver->createSocket($host, $port);
+    
+    return $transceiver;
+  }
+  
+  private function createSocket($host, $port)
   {
     $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
     socket_connect($this->socket , $host , $port);
   }
   
+  /**
+   * Create a SocketTransceiver based on the existing $socket
+   * @param resource $socket
+   * @return SocketTransceiver
+   */
+  public static function accept($socket)
+  {
+    $transceiver = new SocketTransceiver();
+    $transceiver->acceptSocket($socket);
+    
+    return $transceiver;
+  }
+  
+  private function acceptSocket($socket)
+  {
+    $this->socket = socket_accept($socket);
+  }
+  
+  /**
+   * Reads a single message from the channel.
+   * Blocks until a message can be read.
+   * @return string The message read from the channel.
+   */
   public function read_message()
   {
     socket_recv ( $this->socket , $buf , 8 , MSG_WAITALL );
@@ -522,6 +637,10 @@ class SocketTransceiver extends Transceiver {
     return $message;
   }
   
+  /**
+   * Writes a message into the channel. Blocks until the message has been written.
+   * @param string $message
+   */
   public function write_message($message)
   {
     $binary_length = strlen($message);
@@ -547,8 +666,35 @@ class SocketTransceiver extends Transceiver {
     
   }
   
-  public function close() {
+  
+  /**
+   * Check if this transceiver has proceed to a valid handshake exchange
+   * @return boolean true if this transceiver has make a valid hanshake with it's remote
+   */
+  public function is_connected()
+  {
+    return (!is_null($this->remote));
+  }
+  
+  /**
+   * Return the name of the socket remode side
+   * @return string the remote name
+   */
+  public function remote_name()
+  {
+    $result = socket_getpeername($this->socket, $address, $port);
+    return ($result) ? "$address:$port" : null;
+  }
+  
+  
+  public function close()
+  {
     socket_close($this->socket);
+  }
+  
+  public function socket()
+  {
+    return $this->socket;
   }
   
 }
@@ -556,28 +702,28 @@ class SocketTransceiver extends Transceiver {
 /**
  * Socket server implementation.
  */
-class SocketServer extends SocketTransceiver {
+class SocketServer {
   
   protected $responder;
-  protected $socket0;
+  protected $socket;
   
   public function __construct($host, $port, $responder) {
     $this->responder = $responder;
-    $this->socket0 = socket_create(AF_INET, SOCK_STREAM, 0);
-    socket_bind($this->socket0 , $host , $port);
-    socket_listen($this->socket0, 3);
+    $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
+    socket_bind($this->socket , $host , $port);
+    socket_listen($this->socket, 3);
   }
   
   public function start($max_clients = 10)
   {
-    $clients = array();
+    $transceivers = array();
     
     while (true) {
       // $read contains all the client we listen to
-      $read = array($this->socket0);
+      $read = array($this->socket);
       for ($i = 0; $i < $max_clients; $i++) {
-        if (isset($clients[$i]) && $clients[$i]  != null)
-          $read[$i + 1] = $clients[$i];
+        if (isset($transceivers[$i]) && $transceivers[$i]  != null)
+          $read[$i + 1] = $transceivers[$i]->socket();
       }
     
       // check all client to know which ones are writing
@@ -585,10 +731,10 @@ class SocketServer extends SocketTransceiver {
       // $read contains all client that send something to the server
       
       // New connexion
-      if (in_array($this->socket0, $read)) {
+      if (in_array($this->socket, $read)) {
         for ($i = 0; $i < $max_clients; $i++) {
-          if ( !isset($clients[$i]) ) {
-            $clients[$i] = socket_accept($this->socket0);
+          if ( !isset($transceivers[$i]) ) {
+            $transceivers[$i] = SocketTransceiver::accept($this->socket);
             break;
           }
         }
@@ -596,23 +742,24 @@ class SocketServer extends SocketTransceiver {
       
       // Check all client that are trying to write
       for ($i = 0; $i < $max_clients; $i++) {
-        if (isset($clients[$i]) && in_array($clients[$i] , $read)) {
-          $this->socket = $clients[$i];
+        if (isset($transceivers[$i]) && in_array($transceivers[$i]->socket(), $read)) {
           // Read the message
-          $call_request = $this->read_message();
+          $call_request = $transceivers[$i]->read_message();
           // Respond if the message is not empty
           if (!is_null($call_request)) {
-            $call_response = $this->responder->respond($call_request);
+            $call_response = $this->responder->respond($call_request, $transceivers[$i]);
             if (!is_null($call_response))
-              $this->write_message($call_response);
+              $transceivers[$i]->write_message($call_response);
           // Else it's a client disconnecton
           } else {
-            socket_close($clients[$i]);
-            unset($clients[$i]);
+            $transceivers[$i]->close();
+            unset($transceivers[$i]);
           }
         }
       }
-    } 
+    }
+    
+    socket_close($this->socket);
   }
 }
   

@@ -24,7 +24,7 @@ class IpcTest extends PHPUnit_Framework_TestCase
 {
   protected static $server_pid = null;
   protected $server_host = "127.0.0.1";
-  protected $server_port = 1410;
+  protected $server_port = 1413;
   
 	public static function setUpBeforeClass() {
     exec('php '.__DIR__.'/sample_rpc_server.php > /dev/null 2>&1 & echo $!', $pid);
@@ -33,7 +33,7 @@ class IpcTest extends PHPUnit_Framework_TestCase
 	}
 	
 	public function testSimpleRequestResponse() {
-    $client = new SocketTransceiver($this->server_host, $this->server_port);
+    $client = SocketTransceiver::create($this->server_host, $this->server_port);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));
@@ -45,7 +45,7 @@ class IpcTest extends PHPUnit_Framework_TestCase
 	}
 	
 	public function testNotification() {
-    $client = new SocketTransceiver($this->server_host, $this->server_port);
+    $client = SocketTransceiver::create($this->server_host, $this->server_port);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $response = $requestor->request('testNotification', array("notification" => array("subject" => "notify")));
@@ -55,7 +55,7 @@ class IpcTest extends PHPUnit_Framework_TestCase
 	}
 	
 	public function testRequestResponseException() {
-    $client = new SocketTransceiver($this->server_host, $this->server_port);
+    $client = SocketTransceiver::create($this->server_host, $this->server_port);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $exception_raised = false;

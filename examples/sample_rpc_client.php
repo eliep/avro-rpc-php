@@ -51,7 +51,7 @@ $protocol = <<<PROTO
 }
 PROTO;
 
-$client = new SocketTransceiver('127.0.0.1', 1410);
+$client = SocketTransceiver::create('127.0.0.1', 1411);
 $requestor = new Requestor(AvroProtocol::parse($protocol), $client);
 
 $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));

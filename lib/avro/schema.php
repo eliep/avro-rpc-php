@@ -1043,6 +1043,11 @@ class AvroNamedSchemata
     $schemata->schemata[$name] = $schema;
     return $schemata;
   }
+  
+  public function to_avro()
+  {
+    return array_values($this->schemata);
+  }
 }
 
 /**
