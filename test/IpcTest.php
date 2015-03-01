@@ -27,9 +27,9 @@ class IpcTest extends PHPUnit_Framework_TestCase
   protected $server_port = 1410;
   
 	public static function setUpBeforeClass() {
-    exec('php ./sample_rpc_server.php > /dev/null 2>&1 & echo $!', $pid);
+    exec('php '.__DIR__.'/sample_rpc_server.php > /dev/null 2>&1 & echo $!', $pid);
     self::$server_pid = (int)$pid[0];
-    sleep(1);
+    sleep(1); // wait for the server to setup.
 	}
 	
 	public function testSimpleRequestResponse() {
