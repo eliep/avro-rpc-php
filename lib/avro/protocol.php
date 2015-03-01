@@ -43,7 +43,8 @@ class AvroProtocol
     return $protocol;
   }
 
-  function real_parse($avro) {
+  function real_parse($avro)
+  {
     $this->protocol = $avro["protocol"];
     $this->namespace = $avro["namespace"];
     $this->schemata = new AvroNamedSchemata();
@@ -64,7 +65,8 @@ class AvroProtocol
     }
   }
   
-  public function request_schemas($method) {
+  public function request_schemas($method)
+  {
     $schemas = array();
     $msgs = $this->getProtocol()->messages[$method];
     foreach ($msgs->request->fields() as $field) {
@@ -76,14 +78,16 @@ class AvroProtocol
   /**
    * @return string a md5 hash of this Avro Protocol
    */
-  public function md5() {
+  public function md5()
+  {
     return md5($this->__toString(), true);
   }
   
   /**
    * @returns string the JSON-encoded representation of this Avro schema.
    */
-  public function __toString() {
+  public function __toString()
+  {
     return json_encode($this->to_avro());
   }
   
@@ -160,6 +164,7 @@ class AvroProtocolMessage
 {
 
   public $doc = null;
+  public $name;
   /**
    * @var AvroRecordSchema $request
    */

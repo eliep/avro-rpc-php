@@ -15,7 +15,7 @@ try {
   echo json_encode($requestor->request('send', array("message" => array("a" => 16, "s" => "f", "v" => "there"))))."\n";
   echo json_encode($requestor->request('send', array("message" => array("a" => 25, "s" => "f", "v" => "there"))))."\n";
 } catch (AvroRemoteException $e) {
-  echo "Error: " . json_encode($e->getAvroError()) ."\n";
+  echo "Error: " . json_encode($e->getDatum()) ."\n";
 }
 //sleep(1);
 //}

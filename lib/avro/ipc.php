@@ -1,4 +1,27 @@
 <?php
+<?php
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Avro Requester/Responder and associated support classes.
+ * @package Avro
+ */
 
 const HANDSHAKE_REQUEST_SCHEMA_JSON = <<<HRSJ
 {
@@ -53,7 +76,7 @@ class AvroRemoteException extends AvroException {
     $this->avro_error = $avro_error;
   }
   
-  public function getAvroError()
+  public function getDatum()
   {
     return $this->avro_error;
   }
@@ -92,7 +115,8 @@ class Requestor {
    * @param AvroProtocol $local_protocol Avro Protocol describing the messages sent and received.
    * @param Transceiver $transceiver Transceiver instance to channel messages through.
    */
-  public function __construct(AvroProtocol $local_protocol, Transceiver $transceiver) {
+  public function __construct(AvroProtocol $local_protocol, Transceiver $transceiver)
+  {
     $this->local_protocol = $local_protocol;
     $this->transceiver = $transceiver;
     $this->handshake_requestor_writer = new AvroIODatumWriter(AvroSchema::parse(HANDSHAKE_REQUEST_SCHEMA_JSON));
@@ -101,11 +125,13 @@ class Requestor {
     $this->meta_reader = new AvroIODatumReader(AvroSchema::parse('{"type": "map", "values": "bytes"}'));
   }
   
-  public function local_protocol() {
+  public function local_protocol()
+  {
     return $this->local_protocol;
   }
   
-  public function transceiver() {
+  public function transceiver()
+  {
     return $this->trancseiver;
   }
   
@@ -117,7 +143,8 @@ class Requestor {
    * @throw AvroException when $message_name is not registered on the local or remote protocol
    * @throw AvroRemoteException when server send an error
    */
-  public function request($message_name, $request_datum) {
+  public function request($message_name, $request_datum)
+  {
     $io = new AvroStringIO();
     $encoder = new AvroIOBinaryEncoder($io);
     $this->write_handshake_request($encoder);
@@ -146,7 +173,8 @@ class Requestor {
    * Write the handshake request.
    * @param AvroIOBinaryEncoder $encoder : Encoder to write the handshake request into.
    */
-  public function write_handshake_request(AvroIOBinaryEncoder $encoder) {
+  public function write_handshake_request(AvroIOBinaryEncoder $encoder)
+  {
     $local_hash = $this->local_protocol->md5();
     if (is_null($this->remote_hash)) {
       $this->remote_hash = $local_hash;
@@ -169,7 +197,8 @@ class Requestor {
    * @param AvroIOBinaryEncoder $encoder : Encoder to write the handshake request into.
    * @throw AvroException when $message_name is not registered on the local protocol
    */
-  public function write_call_request($message_name, $request_datum, AvroIOBinaryEncoder $encoder) {
+  public function write_call_request($message_name, $request_datum, AvroIOBinaryEncoder $encoder)
+  {
     $request_metadata = array();
     $this->meta_writer->write($request_metadata, $encoder);
     
@@ -187,7 +216,8 @@ class Requestor {
    * @return boolean true if a response exists.
    * @throw  AvroException when server respond an unknown handshake match 
    */
-  public function read_handshake_response(AvroIOBinaryDecoder $decoder) {
+  public function read_handshake_response(AvroIOBinaryDecoder $decoder)
+  {
     $handshake_response = $this->handshake_requestor_reader->read($decoder);
     $match = $handshake_response["match"];
     switch ($match) {
@@ -226,7 +256,8 @@ class Requestor {
    * @throw  AvroException $message_name is not registered on the local or remote protocol
    * @throw AvroRemoteException when server send an error
    */
-  public function read_call_response($message_name, AvroIOBinaryDecoder  $decoder) {
+  public function read_call_response($message_name, AvroIOBinaryDecoder  $decoder)
+  {
     $response_metadata = $this->meta_reader->read($decoder);
     
     if (!isset($this->remote_protocol->messages[$message_name]))
@@ -265,7 +296,8 @@ class Responder {
 
   protected $system_error_schema;
   
-  public function __construct(AvroProtocol $local_protocol) {
+  public function __construct(AvroProtocol $local_protocol)
+  {
     $this->local_protocol = $local_protocol;
     $this->local_hash = $local_protocol->md5();
     $this->protocol_cache[$this->local_hash] = $this->local_protocol;
@@ -282,7 +314,8 @@ class Responder {
    * @param string $hash hash of an Avro Protocol
    * @return AvroProtocol|null The protocol associated with $hash or null
    */
-  public function get_protocol_cache($hash) {
+  public function get_protocol_cache($hash)
+  {
     return (isset($this->protocol_cache[$hash])) ? $this->protocol_cache[$hash] : null;
   }
   
@@ -291,12 +324,14 @@ class Responder {
    * @param AvroProtocol $protocol
    * @return Responder $this
    */
-  public function set_protocol_cache($hash, AvroProtocol $protocol) {
+  public function set_protocol_cache($hash, AvroProtocol $protocol)
+  {
     $this->protocol_cache[$hash] = $protocol;
     return $this;
   }
   
-  public function local_protocol() {
+  public function local_protocol()
+  {
     return $this->local_protocol;
   }
   
@@ -306,7 +341,8 @@ class Responder {
    * @return string|null the serialiazed procedure call response or null if it's a one-way message
    * @throw AvroException
    */
-  public function respond($call_request) {
+  public function respond($call_request)
+  {
     $buffer_reader = new AvroStringIO($call_request);
     $decoder = new AvroIOBinaryDecoder($buffer_reader);
     
@@ -333,10 +369,8 @@ class Responder {
       $datum_reader = new AvroIODatumReader($remote_message->request, $local_message->request);
       $request = $datum_reader->read($decoder);
       try {
-        
-        if (!$this->local_protocol->messages[$remote_message_name]->is_one_way())
-          $response_datum = $this->invoke($local_message, $request);
-        else
+        $response_datum = $this->invoke($local_message, $request);
+        if ($this->local_protocol->messages[$remote_message_name]->is_one_way())
           return null;
         
       } catch (AvroRemoteException $e) {
@@ -352,7 +386,7 @@ class Responder {
         $datum_writer->write($response_datum, $encoder);
       } else {
         $datum_writer = new AvroIODatumWriter($local_message->errors);
-        $datum_writer->write($error->getAvroError(), $encoder);
+        $datum_writer->write($error->getDatum(), $encoder);
       }
     } catch (AvroException $e) {
       $error = new AvroRemoteException($e->getMessage());
@@ -373,7 +407,8 @@ class Responder {
    * @param AvroIOBinaryEncoder $encoder  Where to write to.
    * @return AvroProtocol The requested Protocol.
    */
-  public function process_handshake(AvroIOBinaryDecoder $decoder, AvroIOBinaryEncoder $encoder) {
+  public function process_handshake(AvroIOBinaryDecoder $decoder, AvroIOBinaryEncoder $encoder)
+  {
     $handshake_request = $this->handshake_responder_reader->read($decoder);
     $client_hash = $handshake_request["clientHash"];
     $client_protocol = $handshake_request["clientProtocol"];
@@ -428,7 +463,8 @@ abstract class Transceiver {
    * @param string $request the request message
    * @return string the reply message
    */
-  public function transceive($request) {
+  public function transceive($request)
+  {
     $this->write_message($request);
     return $this->read_message();
   }
@@ -461,12 +497,14 @@ class SocketTransceiver extends Transceiver {
   private static $serial = 1;
   protected $socket;
   
-  public function __construct($host, $port) {
+  public function __construct($host, $port)
+  {
     $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
     socket_connect($this->socket , $host , $port);
   }
   
-  public function read_message() {
+  public function read_message()
+  {
     socket_recv ( $this->socket , $buf , 8 , MSG_WAITALL );
     if ($buf == null)
       return $buf;
@@ -485,7 +523,8 @@ class SocketTransceiver extends Transceiver {
     return $message;
   }
   
-  public function write_message($message) {
+  public function write_message($message)
+  {
     $binary_length = strlen($message);
     
     $max_binary_frame_length = BUFFER_SIZE - 4;
@@ -530,7 +569,8 @@ class SocketServer extends SocketTransceiver {
     socket_listen($this->socket0, 3);
   }
   
-  public function start($max_clients = 10) {
+  public function start($max_clients = 10)
+  {
     $clients = array();
     
     while (true) {
@@ -578,27 +618,3 @@ class SocketServer extends SocketTransceiver {
 }
   
 
-
-/**
- * Framed message
- */
-
-/**
- * Wrapper around a file-like object to read framed data.
- */
-class FramedReader {
-  
-  protected $reader;
-  
-  public function __construct($reader) {
-    $this->reader = $reader;
-  }
-  
-  /**
-   * Reads one message from the configured reader.
-   * @return string the message
-   */
-  public function read() {
-    
-  }
-}
