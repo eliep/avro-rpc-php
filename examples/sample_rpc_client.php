@@ -39,7 +39,7 @@ $protocol = <<<PROTO
      {"type": "record", "name": "NeverSend",
       "fields": [{"name": "never",   "type": "string"}]
      },
-     {"type": "record", "name": "AlwaysRaised",
+     {"type": "error", "name": "AlwaysRaised",
       "fields": [{"name": "exception",   "type": "string"}]
      }
  ],
@@ -48,6 +48,11 @@ $protocol = <<<PROTO
      "testSimpleRequestResponse": {
          "doc" : "Simple Request Response",
          "request": [{"name": "message", "type": "SimpleRequest"}],
+         "response": "SimpleResponse"
+     },
+     "testSimpleRequestWithoutParameters": {
+         "doc" : "Simple Request Response",
+         "request": [],
          "response": "SimpleResponse"
      },
      "testNotification": {
@@ -65,10 +70,47 @@ $protocol = <<<PROTO
 }
 PROTO;
 
-$client = SocketTransceiver::create('127.0.0.1', 1411);
+$client = NettyFramedSocketTransceiver::create('127.0.0.1', 1411);
 $requestor = new Requestor(AvroProtocol::parse($protocol), $client);
 
-$response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));
+try {
+  $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "pong")));
+  echo "Response received: ".json_encode($response)."\n";
+  $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));
+  echo "Response received: ".json_encode($response)."\n";
+} catch (AvroRemoteException $e) {
+  echo "Exception received: ".json_encode($e->getDatum())."\n";
+}
 
+try {
+  $response = $requestor->request('testSimpleRequestWithoutParameters', array());
+  echo "Response received: ".json_encode($response)."\n";
+} catch (AvroRemoteException $e) {
+  echo "Exception received: ".json_encode($e->getDatum())."\n";
+}
+
+try {
+  $response = $requestor->request('testNotification', array("notification" => array("subject" => "notify")));
+  echo "Response received: ".json_encode($response)."\n";
+} catch (AvroRemoteException $e) {
+  echo "Exception received: ".json_encode($e->getDatum())."\n";
+}
+
+try {
+  $response = $requestor->request('testRequestResponseException', array("exception" => array("cause" => "callback")));
+  echo "Response received: ".json_encode($response)."\n";
+} catch (AvroRemoteException $e) {
+  $exception_datum = $e->getDatum();
+  echo "Exception received: ".json_encode($exception_datum)."\n";
+}
+
+
+try {
+  $response = $requestor->request('testRequestResponseException', array("exception" => array("cause" => "system")));
+  echo "Response received: ".json_encode($response)."\n";
+} catch (AvroRemoteException $e) {
+  $exception_datum = $e->getDatum();
+  echo "Exception received: ".json_encode($exception_datum)."\n";
+}
 $client->close();
 

@@ -116,6 +116,7 @@ class AvroProtocol
 
 class AvroProtocolMessage
 {
+  const SYSTEM_ERROR_TYPE = "string";
 
   public $doc = null;
   public $name;
@@ -142,25 +143,29 @@ class AvroProtocolMessage
     else $avro["response"] = "null";
       
     if ($this->response == null)
-        $this->response = new AvroPrimitiveSchema($avro{'response'});
+      $this->response = new AvroPrimitiveSchema($avro{'response'});
     
-    if (array_key_exists('errors', $avro)) {
-      if (!is_array($avro["errors"]))
-        throw new AvroProtocolParseException( "Errors must be an array");
+    if (isset($avro["one-way"])) {
+      $this->is_one_way = $avro["one-way"];
+    } else {
       
       $errors = array();
-      foreach ($avro["errors"] as $error_type) {
-        $error_schema = $protocol->schemata->schema_by_name(new AvroName($error_type, $protocol->namespace, $protocol->namespace));
-        if (is_null($error_schema))
-          throw new AvroProtocolParseException( "Error type $error_type is unknown");
+      $errors[] = self::SYSTEM_ERROR_TYPE;
+      if (array_key_exists('errors', $avro)) {
+        if (!is_array($avro["errors"]))
+          throw new AvroProtocolParseException( "Errors must be an array");
         
-        $errors[] = $error_schema->qualified_name();
+        foreach ($avro["errors"] as $error_type) {
+          $error_schema = $protocol->schemata->schema_by_name(new AvroName($error_type, $protocol->namespace, $protocol->namespace));
+          if (is_null($error_schema))
+            throw new AvroProtocolParseException( "Error type $error_type is unknown");
+          
+          $errors[] = $error_schema->qualified_name();
+        }
       }
       $this->errors = new AvroUnionSchema($errors, $protocol->namespace, $protocol->schemata);
     }
     
-    if (isset($avro["one-way"]))
-      $this->is_one_way = $avro["one-way"];
     
     if ($this->is_one_way && $this->response->type() != AvroSchema::NULL_TYPE)
       throw new AvroProtocolParseException( "One way message $name can't have a reponse");
@@ -205,9 +210,10 @@ class AvroProtocolMessage
           $error_type = $error->type();
           if (AvroSchema::is_named_type($error_type))
             $error_type = $error->qualified_name();
-  
+    
           $avro["errors"][] = $error_type;
         }
+        array_shift($avro["errors"]);
       }
     }
     

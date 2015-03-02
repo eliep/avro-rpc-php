@@ -176,9 +176,9 @@ class Requestor {
       $io = new AvroStringIO($call_response);
       $decoder = new AvroIOBinaryDecoder($io);
       $call_response_exists = $this->read_handshake_response($decoder);
-      
       if ($call_response_exists) {
-        return $this->read_call_response($message_name, $decoder);
+         $call_response = $this->read_call_response($message_name, $decoder);
+        return $call_response;
       } else
         return $this->request($message_name, $request_datum);
     }
@@ -205,8 +205,8 @@ class Requestor {
     }
     
     $request_datum = array('clientHash' => $local_hash, 'serverHash' => $remote_hash, 'meta' => null);
-    $request_datum["clientProtocol"] = ($this->send_protocol) ? $this->local_protocol : null;
-      
+    $request_datum["clientProtocol"] = ($this->send_protocol) ? $this->local_protocol->to_avro() : null;
+    
     $this->handshake_requestor_writer->write($request_datum, $encoder);
   }
   
@@ -311,6 +311,7 @@ class Requestor {
       $datum_reader = new AvroIODatumReader($remote_message_schema->response, $local_message_schema->response);
       return $datum_reader->read($decoder);
     } else {
+      
       $datum_reader = new AvroIODatumReader($remote_message_schema->errors, $local_message_schema->errors);
       throw new AvroRemoteException($datum_reader->read($decoder));
     }
@@ -426,7 +427,7 @@ class Responder {
         $datum_writer = new AvroIODatumWriter($local_message->response);
         $datum_writer->write($response_datum, $encoder);
       } else {
-        $datum_writer = new AvroIODatumWriter($local_message->errors);
+        $datum_writer = new AvroIODatumWriter($remote_message->errors);
         $datum_writer->write($error->getDatum(), $encoder);
       }
       
@@ -752,10 +753,12 @@ class NettyFramedSocketTransceiver extends SocketTransceiver {
       socket_recv ( $this->socket , $buf , 4 , MSG_WAITALL );
       $frame_size = unpack("Nsize", $buf);
       $frame_size = $frame_size["size"];
-      socket_recv ( $this->socket , $buf , $frame_size , MSG_WAITALL );
-      $message .= $buf;
+      if ($frame_size > 0) {
+        socket_recv ( $this->socket , $bif , $frame_size , MSG_WAITALL );
+        $message .= $bif;
+      }
+      
     }
-    
     return $message;
   }
   

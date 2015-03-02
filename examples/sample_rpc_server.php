@@ -40,7 +40,7 @@ $protocol = <<<PROTO
      {"type": "record", "name": "NeverSend",
       "fields": [{"name": "never",   "type": "string"}]
      },
-     {"type": "record", "name": "AlwaysRaised",
+     {"type": "error", "name": "AlwaysRaised",
       "fields": [{"name": "exception",   "type": "string"}]
      }
  ],
@@ -49,6 +49,11 @@ $protocol = <<<PROTO
      "testSimpleRequestResponse": {
          "doc" : "Simple Request Response",
          "request": [{"name": "message", "type": "SimpleRequest"}],
+         "response": "SimpleResponse"
+     },
+     "testSimpleRequestWithoutParameters": {
+         "doc" : "Simple Request Response",
+         "request": [],
          "response": "SimpleResponse"
      },
      "testNotification": {
@@ -70,17 +75,28 @@ class TestProtocolResponder extends Responder {
   public function invoke( $local_message, $request) {
     echo $local_message->name.":".json_encode($request)."\n";
     switch ($local_message->name) {
+      
       case "testSimpleRequestResponse":
         if ($request["message"]["subject"] == "ping")
           return array("response" => "pong");
         else if ($request["message"]["subject"] == "pong")
           return array("response" => "ping");
         break;
+      
+      case "testSimpleRequestWithoutParameters":
+        return array("response" => "no incoming parameters");
+        break;
+      
       case "testNotification":
         break;
+      
       case "testRequestResponseException":
-        throw new AvroRemoteException(array("exception" => "always"));
+        if ($request["exception"]["cause"] == "callback")
+          throw new AvroRemoteException(array("exception" => "raised on callback cause"));
+        else
+          throw new AvroRemoteException("System exception");
         break;
+      
       default:
         throw new AvroRemoteException("Method unknown");
     }
@@ -90,16 +106,3 @@ class TestProtocolResponder extends Responder {
 $server = new SocketServer('127.0.0.1', 1411, new TestProtocolResponder(AvroProtocol::parse($protocol)), true);
 $server->start();
 
-
-/*
-require_once __DIR__."/../../vendor/autoload.php";
-
-use Avro\Examples\Protocol\Fr\V3d\Avro\ASVProtocol;
-
-
-$protocol = ASVProtocol::getServer('127.0.0.1', 1424);
-$protocol->sendImpl(function($params) {
-  $msg = $params[0];
-  return array("status"=>"toto");
-});
-*/
