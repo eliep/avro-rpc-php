@@ -838,23 +838,34 @@ class SocketServer {
       // Check all client that are trying to write
       for ($i = 0; $i < $max_clients; $i++) {
         if (isset($transceivers[$i]) && in_array($transceivers[$i]->socket(), $read)) {
-          // Read the message
-          $call_request = $transceivers[$i]->read_message();
-          // Respond if the message is not empty
-          if (!is_null($call_request)) {
-            $call_response = $this->responder->respond($call_request, $transceivers[$i]);
-            if (!is_null($call_response))
-              $transceivers[$i]->write_message($call_response);
-          // Else it's a client disconnecton
-          } else {
-            $transceivers[$i]->close();
+          $is_closed = $this->handle_request($transceivers[$i]);
+          if ($is_closed)
             unset($transceivers[$i]);
-          }
         }
       }
     }
     
     socket_close($this->socket);
+  }
+  
+  
+  
+  public function handle_request(Transceiver $transceiver) {
+    // Read the message
+    $call_request = $transceiver->read_message();
+    
+    // Respond if the message is not empty
+    if (!is_null($call_request)) {
+      $call_response = $this->responder->respond($call_request, $transceiver);
+      if (!is_null($call_response))
+        $transceiver->write_message($call_response);
+      return false;
+    
+    // Else the client has disconnect
+    } else {
+      $transceiver->close();
+      return true;
+    }
   }
 }
   

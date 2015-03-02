@@ -20,20 +20,91 @@
 require_once('test_helper.php');
 
 
-class IpcTest extends PHPUnit_Framework_TestCase
-{
-  protected static $server_pid = null;
-  protected $server_host = "127.0.0.1";
-  protected $server_port = 1413;
-  
-	public static function setUpBeforeClass() {
-    exec('php '.__DIR__.'/sample_rpc_server.php > /dev/null 2>&1 & echo $!', $pid);
-    self::$server_pid = (int)$pid[0];
-    sleep(1); // wait for the server to setup.
+class TestTransceiver extends SocketTransceiver {
+	
+	public $server = null;
+	protected $response = null;
+	
+	public static function getTestClient($server)
+	{
+		$transceiver = new TestTransceiver();
+		$transceiver->server = $server;
+		
+		return $transceiver;
 	}
 	
-	public function testSimpleRequestResponse() {
-    $client = NettyFramedSocketTransceiver::create($this->server_host, $this->server_port);
+  public function read_message()
+  {
+		return $this->response;
+  }
+  
+  /**
+   * Writes a message into the channel. Blocks until the message has been written.
+   * @param string $message
+   */
+  public function write_message($message)
+  {
+		$this->response = null;
+		if (!is_null($this->server))
+			$this->response = $this->server->process($message);
+  }
+  
+  /**
+   * Return the name of the socket remode side
+   * @return string the remote name
+   */
+  public function remote_name()
+  {
+		return 'TestTransceiver';
+  }
+}
+
+class TestServer {
+	
+	protected $responder;
+	protected $transceiver;
+	
+	public function __construct(Responder $responder) {
+		$this->responder = $responder;
+		$this->transceiver = new TestTransceiver();
+	}
+	
+	public function process($call_request) {
+		$call_response = $this->responder->respond($call_request, $this->transceiver);
+		if (!is_null($call_response))
+			return $call_response;
+	}
+}
+
+class TestProtocolResponder extends Responder {
+  public function invoke( $local_message, $request) {
+    switch ($local_message->name) {
+      case "testSimpleRequestResponse":
+        if ($request["message"]["subject"] == "ping")
+          return array("response" => "pong");
+        else if ($request["message"]["subject"] == "pong")
+          return array("response" => "ping");
+        break;
+      case "testNotification":
+        break;
+      case "testRequestResponseException":
+        throw new AvroRemoteException(array("exception" => "always"));
+        break;
+      default:
+        throw new AvroRemoteException("Method unknown");
+    }
+  }
+}
+
+
+class IpcTest extends PHPUnit_Framework_TestCase
+{
+	
+	public function testSimpleRequestResponse()
+	{
+		
+		$server = new TestServer(new TestProtocolResponder(AvroProtocol::parse($this->protocol)));
+    $client = TestTransceiver::getTestClient($server);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));
@@ -41,21 +112,23 @@ class IpcTest extends PHPUnit_Framework_TestCase
     $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "pong")));
     $this->assertEquals("ping", $response["response"]);
     
-    $client->close();
 	}
 	
-	public function testNotification() {
-    $client = NettyFramedSocketTransceiver::create($this->server_host, $this->server_port);
+	public function testNotification()
+	{
+		$server = new TestServer(new TestProtocolResponder(AvroProtocol::parse($this->protocol)));
+    $client = TestTransceiver::getTestClient($server);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $response = $requestor->request('testNotification', array("notification" => array("subject" => "notify")));
     $this->assertTrue($response);
     
-    $client->close();
 	}
 	
-	public function testRequestResponseException() {
-    $client = NettyFramedSocketTransceiver::create($this->server_host, $this->server_port);
+	public function testRequestResponseException()
+	{
+		$server = new TestServer(new TestProtocolResponder(AvroProtocol::parse($this->protocol)));
+    $client = TestTransceiver::getTestClient($server);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $exception_raised = false;
@@ -67,13 +140,30 @@ class IpcTest extends PHPUnit_Framework_TestCase
       $this->assertEquals("always", $exception_datum["exception"]);
     }
     $this->assertTrue($exception_raised);
-    
-    $client->close();
 	}
-  
-  public static function  tearDownAfterClass() {
-    exec("kill -9 ".self::$server_pid);
-  }
+	
+	public function testMultipleCalls()
+	{
+		$server = new TestServer(new TestProtocolResponder(AvroProtocol::parse($this->protocol)));
+    $client = TestTransceiver::getTestClient($server);
+    $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
+    
+		$response = $requestor->request('testNotification', array("notification" => array("subject" => "notify")));
+    $this->assertTrue($response);
+		
+    $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));
+    $this->assertEquals("pong", $response["response"]);
+		
+    $exception_raised = false;
+    try {
+      $response = $requestor->request('testRequestResponseException', array("exception" => array("cause" => "test")));
+    } catch (AvroRemoteException $e) {
+      $exception_raised = true;
+      $exception_datum = $e->getDatum();
+      $this->assertEquals("always", $exception_datum["exception"]);
+    }
+    $this->assertTrue($exception_raised);
+	}
   
   private $protocol = <<<PROTO
 {
