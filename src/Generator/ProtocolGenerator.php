@@ -11,19 +11,21 @@ class ProtocolGenerator {
 
 namespace PT_NAMESPACE;
 
-use Avro\RPC\RpcProtocol;
-
-class PT_CLASSNAME extends RpcProtocol {
+class PT_CLASSNAME extends \Requestor {
   
-  private \$jsonProtocol =
+  private \$json_protocol =
 PT_JSON
   
+  public function __construct(\$host, \$port) {
+    \$client = \NettyFramedSocketTransceiver::create(\$host, \$port);
+    parent::__construct(\AvroProtocol::parse(\$this->json_protocol), \$client);
+  }
+  
   public function getJsonProtocol() { return \$this->jsonProtocol; }
-  public function getMd5() { return md5(\$this->jsonProtocol, true); }
+  
+  public function close() { return \$this->transceiver->close(); }
   
 PT_CLIENT_FUNCTIONS
-
-PT_SERVER_FUNCTIONS
   
 }
 PT;
@@ -31,18 +33,11 @@ PT;
     private $client_function_tpl = <<<CFT
     
   public function CFT_NAME(CFT_PARAMS) {
-    return \$this->genericRequest(array(CFT_PARAMS));
+    return \$this->request('CFT_NAME', array(CFT_ASSOC_PARAMS));
   }
     
 CFT;
   
-    private $server_function_tpl = <<<SFT
-    
-  public function SFT_NAMEImpl(\$callback) {
-    return \$this->genericResponse(\$callback);
-  }
-    
-SFT;
   
   public function generates($input_folder, $output_folder, $namespace_prefix = null) {
     if (file_exists($input_folder)) {
@@ -57,34 +52,32 @@ SFT;
   
   public function write($input_filename, $output_folder, $namespace_prefix) {
     $protocol_json = file_get_contents($input_filename);
-    $protocol_helper = new RpcProtocolHelper($protocol_json);
-    $protocol = $protocol_helper->getProtocol();
+    $protocol = \AvroProtocol::parse($protocol_json);
     
+    $working_tpl = $this->protocol_tpl;
     $filename = $this->getFilename($protocol);
     $subdirectory = $this->getSubdirectory($protocol);
-    $protocol_tpl = $this->generate($protocol_helper, $protocol, $protocol_json, $namespace_prefix);
+    $working_tpl = $this->generate($protocol, $protocol_json, $namespace_prefix, $working_tpl);
+    
     if (!file_exists($output_folder.$subdirectory))
       mkdir($output_folder.$subdirectory, 0755, true);
-    file_put_contents($output_folder.$subdirectory."/".$filename, $protocol_tpl);
+    file_put_contents($output_folder.$subdirectory."/".$filename, $working_tpl);
   }
   
-  public function generate($protocol_helper, $protocol, $protocol_json, $namespace_prefix) {
+  public function generate($protocol, $protocol_json, $namespace_prefix, $working_tpl) {
     $namespace = $this->getNamespace($protocol, $namespace_prefix);
-    $this->protocol_tpl = str_replace("PT_NAMESPACE", $namespace, $this->protocol_tpl);
+    $working_tpl = str_replace("PT_NAMESPACE", $namespace, $working_tpl);
     
     $classname = $this->getClassname($protocol);
-    $this->protocol_tpl = str_replace("PT_CLASSNAME", $classname, $this->protocol_tpl);
+    $working_tpl = str_replace("PT_CLASSNAME", $classname, $working_tpl);
     
     $json = $this->getJson($protocol_json);
-    $this->protocol_tpl = str_replace("PT_JSON", $json, $this->protocol_tpl);
+    $working_tpl = str_replace("PT_JSON", $json, $working_tpl);
     
     $client_functions = $this->getClientFunctions($protocol);
-    $this->protocol_tpl = str_replace("PT_CLIENT_FUNCTIONS", $client_functions, $this->protocol_tpl);
+    $working_tpl= str_replace("PT_CLIENT_FUNCTIONS", $client_functions, $working_tpl);
     
-    $server_functions = $this->getServerFunctions($protocol);
-    $this->protocol_tpl = str_replace("PT_SERVER_FUNCTIONS", $server_functions, $this->protocol_tpl);
-    
-    return $this->protocol_tpl;
+    return $working_tpl;
   }
   
   public function getNamespace($protocol, $namespace_prefix = null) {
@@ -94,7 +87,7 @@ SFT;
   }
   
   public function getClassname($protocol) {
-    return $protocol->name."Protocol";
+    return $protocol->name."Requestor";
   }
   
   public function getFilename($protocol) {
@@ -113,29 +106,24 @@ SFT;
   public function getClientFunctions($protocol) {
     $client_functions = array();
     
+    
     $messages = $protocol->messages;
     foreach ($messages as $msg_name => $msg_def) {
+      $working_tpl = $this->client_function_tpl;
+    
       $client_functions[$msg_name] = array();
+      $client_functions_assoc[$msg_name] = array();
       foreach ($msg_def->request->fields() as $field) {
         //echo $field->name()."/".$field->type(). "\n";
         $client_functions[$msg_name][] = "$".$field->name();
+        $client_functions_assoc[$msg_name][] = "'".$field->name()."'" . " => $" . $field->name();
       }
-      $client_functions[$msg_name] = str_replace("CFT_PARAMS", implode(", ", $client_functions[$msg_name]), $this->client_function_tpl);
+      $client_functions[$msg_name] = str_replace("CFT_PARAMS", implode(", ", $client_functions[$msg_name]), $working_tpl);
+      $client_functions[$msg_name] = str_replace("CFT_ASSOC_PARAMS", implode(", ", $client_functions_assoc[$msg_name]), $client_functions[$msg_name]);
       $client_functions[$msg_name] = str_replace("CFT_NAME", $msg_name, $client_functions[$msg_name]);
       //echo $msg_def->response->fullname()."/".$msg_def->response->qualified_name()."/".$msg_def->response->type()."\n";
     }
     return implode("\n", $client_functions);
-  }
-  
-  
-  public function getServerFunctions($protocol) {
-    $server_functions = array();
-    
-    $messages = $protocol->messages;
-    foreach ($messages as $msg_name => $msg_def) 
-      $server_functions[$msg_name] = str_replace("SFT_NAME", $msg_name, $this->server_function_tpl);
-
-    return implode("\n", $server_functions);
   }
 }
 /*

@@ -87,7 +87,7 @@ class TestProtocolResponder extends Responder {
   }
 }
 
-$server = new SocketServer('127.0.0.1', 1413, new TestProtocolResponder(AvroProtocol::parse($protocol)));
+$server = new SocketServer('127.0.0.1', 1413, new TestProtocolResponder(AvroProtocol::parse($protocol)), true);
 $server->start();
 
 

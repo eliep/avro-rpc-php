@@ -33,7 +33,7 @@ class IpcTest extends PHPUnit_Framework_TestCase
 	}
 	
 	public function testSimpleRequestResponse() {
-    $client = SocketTransceiver::create($this->server_host, $this->server_port);
+    $client = NettyFramedSocketTransceiver::create($this->server_host, $this->server_port);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));
@@ -45,7 +45,7 @@ class IpcTest extends PHPUnit_Framework_TestCase
 	}
 	
 	public function testNotification() {
-    $client = SocketTransceiver::create($this->server_host, $this->server_port);
+    $client = NettyFramedSocketTransceiver::create($this->server_host, $this->server_port);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $response = $requestor->request('testNotification', array("notification" => array("subject" => "notify")));
@@ -55,7 +55,7 @@ class IpcTest extends PHPUnit_Framework_TestCase
 	}
 	
 	public function testRequestResponseException() {
-    $client = SocketTransceiver::create($this->server_host, $this->server_port);
+    $client = NettyFramedSocketTransceiver::create($this->server_host, $this->server_port);
     $requestor = new Requestor(AvroProtocol::parse($this->protocol), $client);
     
     $exception_raised = false;

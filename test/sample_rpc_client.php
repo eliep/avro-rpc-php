@@ -66,11 +66,19 @@ $protocol = <<<PROTO
 }
 PROTO;
 
-$client = SocketTransceiver::create('127.0.0.1', 1413);
+$client = NettyFramedSocketTransceiver::create('127.0.0.1', 1413);
 $requestor = new Requestor(AvroProtocol::parse($protocol), $client);
 
 $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "pong")));
 echo json_encode($response)."\n";
+$response = $requestor->request('testNotification', array("notification" => array("subject" => "ping")));
+echo json_encode($response)."\n";
+
+try {
+  $response = $requestor->request('testRequestResponseException', array("exception" => array("cause" => "ping")));
+} catch (AvroRemoteException $e) {
+  echo json_encode($e->getDatum())."\n";
+}
 
 $client->close();
 

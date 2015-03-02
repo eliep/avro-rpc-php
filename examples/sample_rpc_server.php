@@ -16,6 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 require_once __DIR__."/../lib/avro.php";
 
 $protocol = <<<PROTO
@@ -65,10 +66,40 @@ $protocol = <<<PROTO
 }
 PROTO;
 
-$client = SocketTransceiver::create('127.0.0.1', 1411);
-$requestor = new Requestor(AvroProtocol::parse($protocol), $client);
+class TestProtocolResponder extends Responder {
+  public function invoke( $local_message, $request) {
+    echo $local_message->name.":".json_encode($request)."\n";
+    switch ($local_message->name) {
+      case "testSimpleRequestResponse":
+        if ($request["message"]["subject"] == "ping")
+          return array("response" => "pong");
+        else if ($request["message"]["subject"] == "pong")
+          return array("response" => "ping");
+        break;
+      case "testNotification":
+        break;
+      case "testRequestResponseException":
+        throw new AvroRemoteException(array("exception" => "always"));
+        break;
+      default:
+        throw new AvroRemoteException("Method unknown");
+    }
+  }
+}
 
-$response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));
+$server = new SocketServer('127.0.0.1', 1411, new TestProtocolResponder(AvroProtocol::parse($protocol)), true);
+$server->start();
 
-$client->close();
 
+/*
+require_once __DIR__."/../../vendor/autoload.php";
+
+use Avro\Examples\Protocol\Fr\V3d\Avro\ASVProtocol;
+
+
+$protocol = ASVProtocol::getServer('127.0.0.1', 1424);
+$protocol->sendImpl(function($params) {
+  $msg = $params[0];
+  return array("status"=>"toto");
+});
+*/

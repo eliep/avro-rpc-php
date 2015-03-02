@@ -560,7 +560,6 @@ abstract class Transceiver {
  */
 class SocketTransceiver extends Transceiver {
   
-  private static $serial = 1;
   protected $socket;
   
   /**
@@ -588,7 +587,7 @@ class SocketTransceiver extends Transceiver {
     return $transceiver;
   }
   
-  private function createSocket($host, $port)
+  protected function createSocket($host, $port)
   {
     $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
     socket_connect($this->socket , $host , $port);
@@ -607,9 +606,132 @@ class SocketTransceiver extends Transceiver {
     return $transceiver;
   }
   
-  private function acceptSocket($socket)
+  protected function acceptSocket($socket)
   {
     $this->socket = socket_accept($socket);
+  }
+  
+  /**
+   * Reads a single message from the channel.
+   * Blocks until a message can be read.
+   * @return string The message read from the channel.
+   */
+  public function read_message()
+  {
+    $message = "";
+    while (true) {
+      socket_recv ( $this->socket , $buf , 4 , MSG_WAITALL );
+      if ($buf == null)
+        return $buf;
+      $frame_size = unpack("Nsize", $buf);
+      $frame_size = $frame_size["size"];
+      if ($frame_size == 0)
+        return $message;
+      
+      socket_recv ( $this->socket , $buf , $frame_size , MSG_WAITALL );
+      $message .= $buf;
+    }
+    
+    return $message;
+  }
+  
+  /**
+   * Writes a message into the channel. Blocks until the message has been written.
+   * @param string $message
+   */
+  public function write_message($message)
+  {
+    $binary_length = strlen($message);
+    
+    $max_binary_frame_length = BUFFER_SIZE - 4;
+    $sended_length = 0;
+    
+    $frames = array();
+    while ($sended_length < $binary_length) {
+      $not_sended_length = $binary_length - $sended_length;
+      $binary_frame_length = ($not_sended_length > $max_binary_frame_length) ? $max_binary_frame_length : $not_sended_length;
+      $frames[] = substr($message, $sended_length, $binary_frame_length);
+      $sended_length += $binary_frame_length;
+    }
+    
+    foreach ($frames as $frame) {
+      $msg = pack("N", strlen($frame)).$frame;
+      socket_write ( $this->socket, $msg, strlen($msg));
+    }
+    $footer = pack("N", 0);
+    //socket_send ($this->socket, $header, strlen($header) , 0);
+    $x = socket_write ($this->socket, $footer, strlen($footer));
+    
+  }
+  
+  
+  /**
+   * Check if this transceiver has proceed to a valid handshake exchange
+   * @return boolean true if this transceiver has make a valid hanshake with it's remote
+   */
+  public function is_connected()
+  {
+    return (!is_null($this->remote));
+  }
+  
+  /**
+   * Return the name of the socket remode side
+   * @return string the remote name
+   */
+  public function remote_name()
+  {
+    $result = socket_getpeername($this->socket, $address, $port);
+    return ($result) ? "$address:$port" : null;
+  }
+  
+  
+  public function close()
+  {
+    socket_close($this->socket);
+  }
+  
+  public function socket()
+  {
+    return $this->socket;
+  }
+  
+}
+
+/**
+ * Socket Transceiver implementation.
+ * This class can be used by a client to communicate with a socket server (netty implementation)
+ */
+class NettyFramedSocketTransceiver extends SocketTransceiver {
+  
+  protected static $serial = 1;
+  
+  
+  
+  /**
+   * Create a SocketTransceiver with a new socket connected to $host:$port
+   * @param string $host
+   * @param int $host
+   * @return NettyFramedSocketTransceiver
+   */
+  public static function create($host, $port)
+  {
+    $transceiver = new NettyFramedSocketTransceiver();
+    $transceiver->createSocket($host, $port);
+    
+    return $transceiver;
+  }
+  
+  /**
+   * Create a SocketTransceiver based on the existing $socket
+   * @param resource $socket
+   * @return NettyFramedSocketTransceiver
+   */
+  public static function accept($socket)
+  {
+    $transceiver = new NettyFramedSocketTransceiver();
+    $transceiver->acceptSocket($socket);
+    
+    return $transceiver;
   }
   
   /**
@@ -665,39 +787,8 @@ class SocketTransceiver extends Transceiver {
     }
     
   }
-  
-  
-  /**
-   * Check if this transceiver has proceed to a valid handshake exchange
-   * @return boolean true if this transceiver has make a valid hanshake with it's remote
-   */
-  public function is_connected()
-  {
-    return (!is_null($this->remote));
-  }
-  
-  /**
-   * Return the name of the socket remode side
-   * @return string the remote name
-   */
-  public function remote_name()
-  {
-    $result = socket_getpeername($this->socket, $address, $port);
-    return ($result) ? "$address:$port" : null;
-  }
-  
-  
-  public function close()
-  {
-    socket_close($this->socket);
-  }
-  
-  public function socket()
-  {
-    return $this->socket;
-  }
-  
 }
+
 
 /**
  * Socket server implementation.
@@ -706,10 +797,12 @@ class SocketServer {
   
   protected $responder;
   protected $socket;
+  protected $use_netty_framed_transceiver;
   
-  public function __construct($host, $port, $responder) {
+  public function __construct($host, $port, $responder, $use_netty_framed_transceiver = false) {
     $this->responder = $responder;
     $this->socket = socket_create(AF_INET, SOCK_STREAM, 0);
+    $this->use_netty_framed_transceiver = $use_netty_framed_transceiver;
     socket_bind($this->socket , $host , $port);
     socket_listen($this->socket, 3);
   }
@@ -734,7 +827,9 @@ class SocketServer {
       if (in_array($this->socket, $read)) {
         for ($i = 0; $i < $max_clients; $i++) {
           if ( !isset($transceivers[$i]) ) {
-            $transceivers[$i] = SocketTransceiver::accept($this->socket);
+            $transceivers[$i] = ($this->use_netty_framed_transceiver)
+                                  ? NettyFramedSocketTransceiver::accept($this->socket)
+                                  : SocketTransceiver::accept($this->socket);
             break;
           }
         }
