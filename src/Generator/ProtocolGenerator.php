@@ -43,8 +43,12 @@ CFT;
     if (file_exists($input_folder)) {
       $path = realpath($input_folder);
       foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path)) as $filename) {
-        if (!is_dir($filename)) {
-          $this->write($filename, $output_folder, $namespace_prefix);
+        if (!is_dir($filename) && (($temp = strlen($filename) - strlen("avpr")) >= 0 && strpos($filename, "avpr", $temp) !== FALSE)) {
+          try {
+            $this->write($filename, $output_folder, $namespace_prefix);
+          } catch (Exception $e) {
+            echo "Failed to generate $filename: \n".$e->getMessage()."\n";
+          }
         }
       }
     }
