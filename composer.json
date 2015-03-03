@@ -12,6 +12,8 @@
   
   "require": {
   },
+
+  "bin": ["bin/generate.php"],
   
   "autoload": {
     "psr-4": {"Avro\\": "src/"},
