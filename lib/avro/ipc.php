@@ -205,7 +205,7 @@ class Requestor {
     }
     
     $request_datum = array('clientHash' => $local_hash, 'serverHash' => $remote_hash, 'meta' => null);
-    $request_datum["clientProtocol"] = ($this->send_protocol) ? $this->local_protocol->to_avro() : null;
+    $request_datum["clientProtocol"] = ($this->send_protocol) ? $this->local_protocol->__toString() : null;
     
     $this->handshake_requestor_writer->write($request_datum, $encoder);
   }
