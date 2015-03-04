@@ -29,6 +29,11 @@
          "request": [{"name": "message", "type": "SimpleRequest"}],
          "response": "SimpleResponse"
      },
+     "testNotNamedResponse": {
+         "doc" : "Simple Request Response",
+         "request": [{"name": "message", "type": "SimpleRequest"}],
+         "response": {"type": "map", "values": "string"}
+     },
      "testNotification": {
          "doc" : "Notification : one-way message",
          "request": [{"name": "notification", "type": "Notification"}],

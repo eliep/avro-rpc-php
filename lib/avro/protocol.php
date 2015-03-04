@@ -138,9 +138,12 @@ class AvroProtocolMessage
       
     $this->request = new AvroRecordSchema(new AvroName($name, null, $protocol->namespace), null, $avro{'request'}, $protocol->schemata, AvroSchema::REQUEST_SCHEMA);
 
-    if (array_key_exists('response', $avro))
-      $this->response = $protocol->schemata->schema_by_name(new AvroName($avro{'response'}, $protocol->namespace, $protocol->namespace));
-    else $avro["response"] = "null";
+    if (array_key_exists('response', $avro)) {
+      if (!is_array($avro{"response"}))
+        $this->response = $protocol->schemata->schema_by_name(new AvroName($avro{'response'}, $protocol->namespace, $protocol->namespace));
+      else
+        $this->response = AvroSchema::real_parse($avro{"response"}, $protocol->namespace, $protocol->schemata);
+    } else $avro{'response'} = "null";
       
     if ($this->response == null)
       $this->response = new AvroPrimitiveSchema($avro{'response'});
