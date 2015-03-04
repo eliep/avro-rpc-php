@@ -21,7 +21,7 @@ PT_JSON
     parent::__construct(\AvroProtocol::parse(self::\$json_protocol), \$client);
   }
   
-  public static function getJsonProtocol() { return self::\$jsonProtocol; }
+  public static function getJsonProtocol() { return self::\$json_protocol; }
   
   public function close() { return \$this->transceiver->close(); }
   
