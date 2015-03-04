@@ -200,6 +200,9 @@ class AvroProtocolMessage
         $response_type = $this->response->type();
         if (AvroSchema::is_named_type($response_type))
           $response_type = $this->response->qualified_name();
+        else if (!AvroSchema::is_primitive_type($response_type))
+          $response_type = $this->response->to_avro();
+          
 
         $avro["response"] = $response_type;
       } else {
