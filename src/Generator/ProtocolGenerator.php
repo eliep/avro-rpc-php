@@ -13,15 +13,15 @@ namespace PT_NAMESPACE;
 
 class PT_CLASSNAME extends \Requestor {
   
-  private \$json_protocol =
+  private static \$json_protocol =
 PT_JSON
   
   public function __construct(\$host, \$port) {
     \$client = \NettyFramedSocketTransceiver::create(\$host, \$port);
-    parent::__construct(\AvroProtocol::parse(\$this->json_protocol), \$client);
+    parent::__construct(\AvroProtocol::parse(self::\$json_protocol), \$client);
   }
   
-  public function getJsonProtocol() { return \$this->jsonProtocol; }
+  public static function getJsonProtocol() { return self::\$jsonProtocol; }
   
   public function close() { return \$this->transceiver->close(); }
   

@@ -4,7 +4,7 @@ namespace Examples\Protocol;
 
 class TestProtocolRequestor extends \Requestor {
   
-  private $json_protocol =
+  private static $json_protocol =
 <<<PROTO
 {"namespace":"examples.protocol","protocol":"TestProtocol","types":[{"type":"record","name":"SimpleRequest","fields":[{"name":"subject","type":"string"}]},{"type":"record","name":"SimpleResponse","fields":[{"name":"response","type":"string"}]},{"type":"record","name":"Notification","fields":[{"name":"subject","type":"string"}]},{"type":"record","name":"RaiseException","fields":[{"name":"cause","type":"string"}]},{"type":"record","name":"NeverSend","fields":[{"name":"never","type":"string"}]},{"type":"record","name":"AlwaysRaised","fields":[{"name":"exception","type":"string"}]}],"messages":{"testSimpleRequestResponse":{"doc":"Simple Request Response","request":[{"name":"message","type":"SimpleRequest"}],"response":"SimpleResponse"},"testNotNamedResponse":{"doc":"Simple Request Response","request":[{"name":"message","type":"SimpleRequest"}],"response":{"type":"map","values":"string"}},"testNotification":{"doc":"Notification : one-way message","request":[{"name":"notification","type":"Notification"}],"one-way":true},"testRequestResponseException":{"doc":"Request Response with Exception","request":[{"name":"exception","type":"RaiseException"}],"response":"NeverSend","errors":["AlwaysRaised"]}}}
 PROTO;
@@ -12,10 +12,10 @@ PROTO;
   
   public function __construct($host, $port) {
     $client = \NettyFramedSocketTransceiver::create($host, $port);
-    parent::__construct(\AvroProtocol::parse($this->json_protocol), $client);
+    parent::__construct(\AvroProtocol::parse(self::$json_protocol), $client);
   }
   
-  public function getJsonProtocol() { return $this->jsonProtocol; }
+  public static function getJsonProtocol() { return self::$jsonProtocol; }
   
   public function close() { return $this->transceiver->close(); }
   
