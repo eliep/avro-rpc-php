@@ -17,6 +17,7 @@ class PT_CLASSNAME extends \Requestor {
 PT_JSON
   
   public function __construct(\$host, \$port) {
+    PT_JAVA_STRING
     \$client = \NettyFramedSocketTransceiver::create(\$host, \$port);
     parent::__construct(\AvroProtocol::parse(self::\$json_protocol), \$client);
   }
@@ -37,9 +38,15 @@ PT;
   }
     
 CFT;
+
+    private $java_string_tpl = <<<JST
+
+    global \$JAVA_STRING_TYPE;
+    \$JAVA_STRING_TYPE = \AvroSchema::JAVA_STRING_TYPE;
+    
+JST;
   
-  
-  public function generates($input_folder, $output_folder, $namespace_prefix = null) {
+  public function generates($input_folder, $output_folder, $namespace_prefix = null, $java_string = false) {
     if (file_exists($input_folder)) {
       $path = realpath($input_folder);
       foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path)) as $filename) {
@@ -54,21 +61,21 @@ CFT;
     }
   }
   
-  public function write($input_filename, $output_folder, $namespace_prefix) {
+  public function write($input_filename, $output_folder, $namespace_prefix, $java_string) {
     $protocol_json = file_get_contents($input_filename);
     $protocol = \AvroProtocol::parse($protocol_json);
     
     $working_tpl = $this->protocol_tpl;
     $filename = $this->getFilename($protocol);
     $subdirectory = $this->getSubdirectory($protocol);
-    $working_tpl = $this->generate($protocol, $protocol_json, $namespace_prefix, $working_tpl);
+    $working_tpl = $this->generate($protocol, $protocol_json, $namespace_prefix, $working_tpl, $java_string);
     
     if (!file_exists($output_folder.$subdirectory))
       mkdir($output_folder.$subdirectory, 0755, true);
     file_put_contents($output_folder.$subdirectory."/".$filename, $working_tpl);
   }
   
-  public function generate($protocol, $protocol_json, $namespace_prefix, $working_tpl) {
+  public function generate($protocol, $protocol_json, $namespace_prefix, $working_tpl, $java_string) {
     $namespace = $this->getNamespace($protocol, $namespace_prefix);
     $working_tpl = str_replace("PT_NAMESPACE", $namespace, $working_tpl);
     
@@ -77,6 +84,8 @@ CFT;
     
     $json = $this->getJson($protocol_json);
     $working_tpl = str_replace("PT_JSON", $json, $working_tpl);
+
+    $working_tpl = str_replace("PT_JAVA_STRING", ($java_string) ? $this->java_string_tpl : "", $working_tpl);
     
     $client_functions = $this->getClientFunctions($protocol);
     $working_tpl= str_replace("PT_CLIENT_FUNCTIONS", $client_functions, $working_tpl);

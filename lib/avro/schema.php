@@ -120,6 +120,18 @@ class AvroSchema
   const STRING_TYPE = 'string';
 
   /**
+   * string schema type value is a Unicode character sequence
+   * @var string string schema type name
+   */
+  const JAVA_STRING_ANNOTATION = 'avro.java.string';
+  
+  /**
+   * string schema type value is a Unicode character sequence
+   * @var string string schema type name
+   */
+  const JAVA_STRING_TYPE = 'String';
+
+  /**
    * bytes schema type value is a sequence of 8-bit unsigned bytes
    * @var string bytes schema type name
    */
@@ -543,8 +555,14 @@ class AvroPrimitiveSchema extends AvroSchema
   {
     $avro = parent::to_avro();
     // FIXME: Is this if really necessary? When *wouldn't* this be the case?
-    if (1 == count($avro))
-      return $this->type;
+    if (1 == count($avro)) {
+      global $JAVA_STRING_TYPE;
+      if (!empty($JAVA_STRING_TYPE) && $JAVA_STRING_TYPE == self::JAVA_STRING_TYPE && $avro[self::TYPE_ATTR] == self::STRING_TYPE)
+        return array(self::TYPE_ATTR => self::STRING_TYPE, self::JAVA_STRING_ANNOTATION => self::JAVA_STRING_TYPE);
+      else
+        return $this->type;
+    }
+
     return $avro;
   }
 }
@@ -665,6 +683,11 @@ class AvroMapSchema extends AvroSchema
     $avro = parent::to_avro();
     $avro[AvroSchema::VALUES_ATTR] = $this->is_values_schema_from_schemata
       ? $this->values->qualified_name() : $this->values->to_avro();
+
+    global $JAVA_STRING_TYPE;
+    if (!empty($JAVA_STRING_TYPE) && $JAVA_STRING_TYPE == self::JAVA_STRING_TYPE && !$this->is_values_schema_from_schemata && $this->values->type == self::STRING_TYPE)
+      $avro[self::JAVA_STRING_ANNOTATION] = self::JAVA_STRING_TYPE;
+
     return $avro;
   }
 }

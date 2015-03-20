@@ -114,8 +114,8 @@ class AvroProtocol
   }
 }
 
-class AvroProtocolMessage
-{
+class AvroProtocolMessage {
+  
   const SYSTEM_ERROR_TYPE = "string";
 
   public $doc = null;
@@ -200,7 +200,7 @@ class AvroProtocolMessage
         $response_type = $this->response->type();
         if (AvroSchema::is_named_type($response_type))
           $response_type = $this->response->qualified_name();
-        else if (!AvroSchema::is_primitive_type($response_type))
+        else
           $response_type = $this->response->to_avro();
           
 
@@ -220,6 +220,8 @@ class AvroProtocolMessage
           $avro["errors"][] = $error_type;
         }
         array_shift($avro["errors"]);
+        if (count($avro["errors"]) == 0)
+          unset($avro["errors"]);
       }
     }
     
