@@ -32,7 +32,7 @@ class AvroProtocol
   public $doc = null;
   public $schemata;
   public $messages;
-  public md5string = null;
+  public $md5string = null;
 
   public static function parse($json)
   {
