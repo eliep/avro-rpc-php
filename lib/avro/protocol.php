@@ -32,6 +32,7 @@ class AvroProtocol
   public $doc = null;
   public $schemata;
   public $messages;
+  public md5string = null;
 
   public static function parse($json)
   {
@@ -80,7 +81,7 @@ class AvroProtocol
    */
   public function md5()
   {
-    return md5($this->__toString(), true);
+    return ($this->md5string != null) ? pack("H*", $this->md5string) : md5($this->__toString(), true);
   }
   
   /**

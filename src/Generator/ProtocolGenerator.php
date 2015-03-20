@@ -20,6 +20,9 @@ PT_JSON
     PT_JAVA_STRING
     \$client = \NettyFramedSocketTransceiver::create(\$host, \$port);
     parent::__construct(\AvroProtocol::parse(self::\$json_protocol), \$client);
+    \$protocol = unserialize(\$this->serialized_protocol);
+    \$protocol->md5string = \$this->md5string;
+    parent::__construct(\$protocol, \$client);
   }
   
   public static function getJsonProtocol() { return self::\$json_protocol; }
@@ -27,7 +30,9 @@ PT_JSON
   public function close() { return \$this->transceiver->close(); }
   
 PT_CLIENT_FUNCTIONS
-  
+
+  private \$serialized_protocol = 'PT_PROTOCOL_SERIALIZED';
+  private \$md5string = 'PT_MD5_STRING';
 }
 PT;
 
@@ -76,6 +81,13 @@ JST;
   }
   
   public function generate($protocol, $protocol_json, $namespace_prefix, $working_tpl, $java_string) {
+    global $JAVA_STRING_TYPE;
+    if ($java_string)
+      $JAVA_STRING_TYPE = \AvroSchema::JAVA_STRING_TYPE;
+    
+    $working_tpl = str_replace("PT_PROTOCOL_SERIALIZED", serialize($protocol), $working_tpl);
+    $working_tpl = str_replace("PT_MD5_STRING", md5($protocol->__toString()), $working_tpl);
+
     $namespace = $this->getNamespace($protocol, $namespace_prefix);
     $working_tpl = str_replace("PT_NAMESPACE", $namespace, $working_tpl);
     
