@@ -89,7 +89,7 @@ class AvroProtocol
    */
   public function __toString()
   {
-    return json_encode($this->to_avro());
+    return json_encode($this->to_avro(), JSON_UNESCAPED_SLASHES);
   }
   
   /**
