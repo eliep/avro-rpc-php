@@ -3,6 +3,8 @@
   "description": "An Avro RPC client in PHP (compatible with the Avro RPC server in Java)",
   "keywords": ["avro", "rpc", "serialization"],
   "license": "Apache-2.0",
+  "type": "library",
+  "homepage": "https://github.com/eliep/avro-rpc-php",
   
   "authors": [
     {
