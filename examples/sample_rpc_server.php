@@ -21,7 +21,7 @@ require_once __DIR__."/../lib/avro.php";
 
 $protocol = <<<PROTO
 {
- "namespace": "examples.protocol",
+ "namespace": "protocol",
  "protocol": "TestProtocol",
 
  "types": [
@@ -40,7 +40,7 @@ $protocol = <<<PROTO
      {"type": "record", "name": "NeverSend",
       "fields": [{"name": "never",   "type": "string"}]
      },
-     {"type": "error", "name": "AlwaysRaised",
+     {"type": "record", "name": "AlwaysRaised",
       "fields": [{"name": "exception",   "type": "string"}]
      }
  ],
@@ -51,10 +51,10 @@ $protocol = <<<PROTO
          "request": [{"name": "message", "type": "SimpleRequest"}],
          "response": "SimpleResponse"
      },
-     "testSimpleRequestWithoutParameters": {
+     "testNotNamedResponse": {
          "doc" : "Simple Request Response",
-         "request": [],
-         "response": "SimpleResponse"
+         "request": [{"name": "message", "type": "SimpleRequest"}],
+         "response": {"type": "map", "values": "string"}
      },
      "testNotification": {
          "doc" : "Notification : one-way message",
@@ -83,8 +83,8 @@ class TestProtocolResponder extends Responder {
           return array("response" => "ping");
         break;
       
-      case "testSimpleRequestWithoutParameters":
-        return array("response" => "no incoming parameters");
+      case "testNotNamedResponse":
+        return array("one" => "1", "two" => "2");
         break;
       
       case "testNotification":

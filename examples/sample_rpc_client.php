@@ -20,7 +20,7 @@ require_once __DIR__."/../lib/avro.php";
 
 $protocol = <<<PROTO
 {
- "namespace": "examples.protocol",
+ "namespace": "protocol",
  "protocol": "TestProtocol",
 
  "types": [
@@ -39,7 +39,7 @@ $protocol = <<<PROTO
      {"type": "record", "name": "NeverSend",
       "fields": [{"name": "never",   "type": "string"}]
      },
-     {"type": "error", "name": "AlwaysRaised",
+     {"type": "record", "name": "AlwaysRaised",
       "fields": [{"name": "exception",   "type": "string"}]
      }
  ],
@@ -50,10 +50,10 @@ $protocol = <<<PROTO
          "request": [{"name": "message", "type": "SimpleRequest"}],
          "response": "SimpleResponse"
      },
-     "testSimpleRequestWithoutParameters": {
+     "testNotNamedResponse": {
          "doc" : "Simple Request Response",
-         "request": [],
-         "response": "SimpleResponse"
+         "request": [{"name": "message", "type": "SimpleRequest"}],
+         "response": {"type": "map", "values": "string"}
      },
      "testNotification": {
          "doc" : "Notification : one-way message",
@@ -79,15 +79,16 @@ try {
   $response = $requestor->request('testSimpleRequestResponse', array("message" => array("subject" => "ping")));
   echo "Response received: ".json_encode($response)."\n";
 } catch (AvroRemoteException $e) {
-  echo "Exception received: ".json_encode($e->getDatum())."\n";
+  echo "Exception received: ".json_encode($e->getDatum()).", ".$e->getMessage()."\n";
 }
 
-try {
-  $response = $requestor->request('testSimpleRequestWithoutParameters', array());
+//try {
+  $response = $requestor->request('testNotNamedResponse', array("message" => array("subject" => "pong")));
   echo "Response received: ".json_encode($response)."\n";
-} catch (AvroRemoteException $e) {
-  echo "Exception received: ".json_encode($e->getDatum())."\n";
-}
+//} catch (AvroRemoteException $e) {
+  //echo "xxx";
+  //echo "Exception received: ".json_encode($e->getDatum()).", ".$e->getMessage()."\n";
+//}
 
 try {
   $response = $requestor->request('testNotification', array("notification" => array("subject" => "notify")));

@@ -1,6 +1,7 @@
 {
   "name": "eliep/avro-rpc-php",
   "description": "An Avro RPC client in PHP (compatible with the Avro RPC server in Java)",
+  "keywords": ["avro", "rpc", "serialization"],
   "license": "Apache-2.0",
   
   "authors": [
@@ -13,10 +14,11 @@
   "require": {
   },
 
-  "bin": ["bin/generate.php"],
+  "suggest": {
+    "eliep/avro-rpc-php-generator": "Generates an Avro RPC client as a PHP class based on your Avro protocol"
+  },
   
   "autoload": {
-    "psr-4": {"Avro\\": "src/"},
     "classmap": ["lib/"]
   }
 }

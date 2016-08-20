@@ -462,7 +462,7 @@ class Responder {
     $remote_protocol =  $this->get_protocol_cache($client_hash);
     
     if (is_null($remote_protocol) && !is_null($client_protocol)) {
-      $remote_protocol = Protocol::parse($client_protocol);
+      $remote_protocol = AvroProtocol::parse($client_protocol);
       $this->set_protocol_cache($client_hash, $remote_protocol);
     }
     
