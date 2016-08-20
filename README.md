@@ -7,16 +7,9 @@ This library is a fork of the original Avro library, only adding a php Avro RPC 
 
 
 ## Installation
-Add the following to your composer.json require section 
-
-```
-"eliep/avro-rpc-php": "^1.7.7.0"
-```
-
-and run
  
 ```bash
-composer install
+composer require eliep/avro-rpc-php
 ```
 
 ## Usage
