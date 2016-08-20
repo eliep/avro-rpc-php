@@ -3,7 +3,7 @@
 See [Avro](http://avro.apache.org/) for a full documentation on Avro and its 
 usage in PHP.
 
-This library is a fork of the php Avro library only adding Avro RPC client.
+This library is a fork of the original Avro library, only adding a php Avro RPC client
 
 
 ## Installation
