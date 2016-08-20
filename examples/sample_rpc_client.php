@@ -82,13 +82,12 @@ try {
   echo "Exception received: ".json_encode($e->getDatum()).", ".$e->getMessage()."\n";
 }
 
-//try {
+try {
   $response = $requestor->request('testNotNamedResponse', array("message" => array("subject" => "pong")));
   echo "Response received: ".json_encode($response)."\n";
-//} catch (AvroRemoteException $e) {
-  //echo "xxx";
-  //echo "Exception received: ".json_encode($e->getDatum()).", ".$e->getMessage()."\n";
-//}
+} catch (AvroRemoteException $e) {
+  echo "Exception received: ".json_encode($e->getDatum()).", ".$e->getMessage()."\n";
+}
 
 try {
   $response = $requestor->request('testNotification', array("notification" => array("subject" => "notify")));
