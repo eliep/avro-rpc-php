@@ -1,2 +1,5 @@
-avro-rpc-php.komodo*
+*komodo*
+.idea
+
 vendor/*
+Supprimerait vendor/
